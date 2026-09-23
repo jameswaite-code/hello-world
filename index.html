@@ -100,20 +100,20 @@
 
     // Outline (knife drawn vertically, tip at the top), with small scallops along the edge
     let d = 'M56 -8 C56 -17 60 -21 65 -21 C71 -21 73.4 -15 73.2 -8';
-    for (let y = -8; y < 38; y += 2.2) {
-      const x0 = 73.2 - (y + 8) / 46 * 2.4, x1 = 73.2 - (y + 10.2) / 46 * 2.4;
+    for (let y = -8; y < 62; y += 2.2) {
+      const x0 = 73.2 - (y + 8) / 72 * 2.4, x1 = 73.2 - (y + 10.2) / 72 * 2.4;
       d += ` Q${(x0 + x1) / 2 - .75} ${y + 1.1} ${x1} ${y + 2.2}`;
     }
-    d += ' C70.6 44 70 50 69.6 54 C69.1 57 68.6 58 68.6 60 C68.6 66 69.5 90 71 132 C71.6 146 67 150 64 150'
-       + ' C61 150 56.4 146 57 132 C58.5 90 59.4 66 59.4 60 C59.4 58 58.4 56 57.6 53 C56.8 50 56 47 56 44 Z';
+    d += ' C70.6 70 70 76 69.6 80 C69.1 83 68.6 84 68.6 86 C68.6 92 69.3 108 70.6 134 C71.4 146 67 150 64 150'
+       + ' C61 150 56.6 146 57.4 134 C58.7 108 59.4 92 59.4 86 C59.4 84 58.4 82 57.6 79 C56.8 76 56 73 56 70 Z';
     const knife = new Path2D(d);
     const lerpTable = (ys, vs, y) => {
       for (let i = 1; i < ys.length; i++) if (y <= ys[i]) return vs[i - 1] + (vs[i] - vs[i - 1]) * (y - ys[i - 1]) / (ys[i] - ys[i - 1]);
       return vs[vs.length - 1];
     };
-    const HY = [52, 60, 66, 80, 100, 120, 132, 140, 146, 150];
-    const HL = [56.8, 59.4, 59.3, 58.9, 58.2, 57.4, 57.0, 57.3, 58.6, 63];
-    const HR = [70.1, 68.6, 68.7, 69.2, 69.9, 70.6, 71.0, 70.7, 69.4, 65];
+    const HY = [78, 86, 92, 104, 118, 128, 134, 140, 146, 150];
+    const HL = [56.8, 59.4, 59.3, 58.9, 58.2, 57.7, 57.4, 57.5, 58.6, 63];
+    const HR = [70.1, 68.6, 68.7, 69.2, 69.9, 70.4, 70.6, 70.5, 69.4, 65];
 
     // Soft shadow cast onto the toast
     x.save();
@@ -129,14 +129,14 @@
     x.clip(knife);
 
     // Blade: flat, polished steel reflecting a window as a soft diagonal band
-    const along = x.createLinearGradient(0, -22, 0, 56);
+    const along = x.createLinearGradient(0, -22, 0, 82);
     along.addColorStop(0, '#c9ced4'); along.addColorStop(.35, '#7d858d'); along.addColorStop(.7, '#9aa1a9'); along.addColorStop(1, '#5e666e');
     x.fillStyle = along;
-    x.fillRect(50, -25, 30, 81);
+    x.fillRect(50, -25, 30, 107);
     const across = x.createLinearGradient(56, 0, 74, 0);
     across.addColorStop(0, 'rgba(0,0,0,.25)'); across.addColorStop(.25, 'rgba(255,255,255,.08)'); across.addColorStop(1, 'rgba(0,0,0,.18)');
     x.fillStyle = across;
-    x.fillRect(50, -25, 30, 81);
+    x.fillRect(50, -25, 30, 107);
     x.save();
     x.beginPath();
     x.moveTo(50, 2); x.lineTo(80, -10); x.lineTo(80, 10); x.lineTo(50, 22); x.closePath();
@@ -151,18 +151,18 @@
       const bx = 56 + rnd() * 18;
       x.strokeStyle = rnd() < .5 ? `rgba(255,255,255,${rnd() * .07})` : `rgba(20,24,30,${rnd() * .06})`;
       x.lineWidth = .2 + rnd() * .3;
-      x.beginPath(); x.moveTo(bx, -22); x.lineTo(bx + (rnd() - .5) * .3, 54); x.stroke();
+      x.beginPath(); x.moveTo(bx, -22); x.lineTo(bx + (rnd() - .5) * .3, 80); x.stroke();
     }
     // Ground bevel along the scalloped edge, and a thin highlight on the spine
     x.strokeStyle = 'rgba(255,255,255,.55)';
     x.lineWidth = 1.2;
-    x.beginPath(); x.moveTo(72, -10); x.bezierCurveTo(71.6, 10, 70.6, 30, 69.4, 46); x.stroke();
+    x.beginPath(); x.moveTo(72, -10); x.bezierCurveTo(71.6, 20, 70.8, 50, 69.4, 72); x.stroke();
     x.strokeStyle = 'rgba(255,255,255,.7)';
     x.lineWidth = .6;
-    x.beginPath(); x.moveTo(56.5, -8); x.lineTo(56.5, 44); x.stroke();
+    x.beginPath(); x.moveTo(56.5, -8); x.lineTo(56.5, 70); x.stroke();
     // Maker's stamp
     x.save();
-    x.translate(62.8, 38);
+    x.translate(62.8, 62);
     x.rotate(Math.PI / 2);
     x.font = 'bold 2.6px Arial, sans-serif';
     x.textAlign = 'center';
@@ -176,25 +176,25 @@
     // Handle: convex and mirror-polished, so the studio shows up as bands running along it
     const stops = [[0, '#23282e'], [.1, '#8c949c'], [.19, '#ffffff'], [.26, '#d9dee3'], [.38, '#59616a'],
                    [.52, '#8e959d'], [.66, '#3b424a'], [.8, '#b9c0c7'], [.9, '#f1f4f6'], [1, '#30363c']];
-    for (let y = 50; y < 151; y += .5) {
+    for (let y = 76; y < 151; y += .5) {
       const l = lerpTable(HY, HL, y) - .3, r = lerpTable(HY, HR, y) + .3;
       const g = x.createLinearGradient(l, 0, r, 0);
       stops.forEach(([o, col]) => g.addColorStop(o, col));
-      x.globalAlpha = y < 56 ? ((y - 50) / 6) * .5 : 1; // melt into the blade at the neck
+      x.globalAlpha = y < 82 ? ((y - 76) / 6) * .5 : 1; // melt into the blade at the neck
       x.fillStyle = g;
       x.fillRect(l, y, r - l, 1.2); // rows overlap so no seams show
     }
     x.globalAlpha = 1;
-    const len = x.createLinearGradient(0, 54, 0, 150);
+    const len = x.createLinearGradient(0, 80, 0, 150);
     len.addColorStop(0, 'rgba(0,0,0,.25)'); len.addColorStop(.35, 'rgba(255,255,255,.06)');
     len.addColorStop(.8, 'rgba(0,0,0,0)'); len.addColorStop(1, 'rgba(0,0,0,.3)');
     x.fillStyle = len;
-    x.fillRect(50, 54, 30, 97);
+    x.fillRect(50, 80, 30, 71);
     // Bright glint where the neck curves
-    const glint = x.createRadialGradient(61, 60, .2, 61, 60, 3);
+    const glint = x.createRadialGradient(61, 86, .2, 61, 86, 3);
     glint.addColorStop(0, 'rgba(255,255,255,.9)'); glint.addColorStop(1, 'rgba(255,255,255,0)');
     x.fillStyle = glint;
-    x.fillRect(56, 55, 10, 10);
+    x.fillRect(56, 81, 10, 10);
     x.restore();
     x.strokeStyle = 'rgba(40,45,52,.85)';
     x.lineWidth = .5;
