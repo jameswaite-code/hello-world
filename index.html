@@ -47,10 +47,44 @@
   #pot.dipping #jar { transform: translateY(4px) scale(.97); }
   #pot.dry #jar { animation: nudge 1.6s ease-in-out infinite; filter: drop-shadow(0 0 14px rgba(255, 196, 70, .55)); }
   #pot:focus-visible { outline: 2px solid #f2c230; outline-offset: 4px; border-radius: 8px; }
+  /* Speech-bubble prompt above the jar when the knife is running low or has run dry */
+  #dryMsg {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 12px);
+    width: max-content;
+    max-width: 15rem;
+    padding: .6rem .9rem;
+    border-radius: 12px;
+    background: #f7cf3a;
+    color: #2a1405;
+    font: 600 .95rem/1.3 system-ui, sans-serif;
+    text-align: left;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .5);
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity .25s ease, transform .25s ease;
+    pointer-events: none;
+  }
+  #dryMsg::after {
+    content: '';
+    position: absolute;
+    right: 30%;
+    top: 100%;
+    border: 9px solid transparent;
+    border-top-color: #f7cf3a;
+  }
+  #dryMsg.low { background: #3a2a1a; color: #f3e2c4; }
+  #dryMsg.low::after { border-top-color: #3a2a1a; }
+  #dryMsg.show { opacity: 1; transform: none; }
+  #dryMsg.show.dry { animation: bob 1.6s ease-in-out infinite; }
+  @keyframes bob { 0%, 100% { transform: none; } 50% { transform: translateY(-5px); } }
   @keyframes nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
   @media (max-width: 640px) {
     .stage { --toast: min(92vw, 60vh); display: flex; flex-direction: column; align-items: center; gap: .5rem; }
-    #pot { position: static; width: 110px; }
+    #pot { position: relative; left: auto; bottom: auto; width: 110px; }
+    #dryMsg { right: 50%; translate: 50% 0; } /* separate from transform, so the bob animation can't undo it */
+    #dryMsg::after { right: calc(50% - 9px); }
   }
   #crumbs {
     position: absolute;
@@ -84,6 +118,7 @@
 <canvas id="toast" aria-label="A slice of toast. Drag across it to spread Marmite and reveal the name James Waite."></canvas>
 <canvas id="crumbs" aria-hidden="true"></canvas>
 <button id="pot" type="button" aria-label="Jar of Marmite: dip your knife here for more">
+  <span id="dryMsg" role="status" aria-live="polite"></span>
   <canvas id="jar"></canvas>
 </button>
 </div>
@@ -956,14 +991,24 @@
   }
 
   // Spreading
-  // The knife holds enough Marmite for roughly 3–4 letters (measured in distance spread over the toast)
-  const KNIFE_REACH = 3000;
+  // The knife holds enough Marmite for roughly 5 letters (measured in distance spread over the toast)
+  const KNIFE_REACH = 4500;
   let spreading = false, activePointer = null, last = null, supply = 1;
 
+  const dryMsg = document.getElementById('dryMsg');
+  let msgState = '';
   function updateSupplyUI() {
     const dry = !unlocked && supply <= .02;
+    const low = !unlocked && !dry && supply <= .25;
     setCursor(unlocked || supply > .45 ? 2 : supply > .02 ? 1 : 0);
     pot.classList.toggle('dry', dry);
+    const state = dry ? 'dry' : low ? 'low' : '';
+    if (state === msgState) return;
+    msgState = state;
+    if (state) dryMsg.textContent = dry
+      ? "Your knife's run dry! Dip it in the jar to load up more Marmite."
+      : 'Running low on Marmite…';
+    dryMsg.className = state ? `show ${state}` : '';
   }
 
   function refill() {
@@ -1029,7 +1074,7 @@
   }
 
   // Reveal progress: a letter counts once nearly all of it is covered well enough to show fully.
-  // Mixing the name into the toast unlocks once 75% of the letters are complete.
+  // Mixing the name into the toast unlocks once 60% of the letters are complete.
   let unlocked = false, checkTimer = 0;
 
   function checkReveal() {
@@ -1042,7 +1087,7 @@
       for (const [px, py] of pts) if (data[((py - y) * w + (px - x)) * 4 + 3] >= 80) n++;
       return n / pts.length >= .95;
     }).length;
-    if (done >= Math.ceil(letters.length * .75)) {
+    if (done >= Math.ceil(letters.length * .6)) {
       unlocked = true;
       updateSupplyUI();
     }
