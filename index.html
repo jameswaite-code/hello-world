@@ -52,6 +52,28 @@
     .stage { --toast: min(92vw, 60vh); display: flex; flex-direction: column; align-items: center; gap: .5rem; }
     #pot { position: static; width: 110px; }
   }
+  #crumbs {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: var(--toast);
+    height: var(--toast);
+    pointer-events: none;
+  }
+  #biteBtn {
+    font: inherit;
+    font-size: .9rem;
+    color: #eee;
+    background: #1b1410;
+    border: 1px solid #5a3b22;
+    border-radius: 999px;
+    padding: .5rem 1.2rem;
+    cursor: pointer;
+    transition: background .15s ease, transform .1s ease;
+  }
+  #biteBtn:hover { background: #2a1d14; }
+  #biteBtn:active { transform: scale(.96); }
+  #biteBtn:focus-visible { outline: 2px solid #f2c230; outline-offset: 3px; }
   p { margin: 0; font-size: .85rem; opacity: .45; padding: 0 1rem; }
   .fallback { font-size: clamp(3rem, 12vw, 9rem); font-weight: bold; }
 </style>
@@ -60,10 +82,12 @@
 <h1>Hello, my name is…</h1>
 <div class="stage">
 <canvas id="toast" aria-label="A slice of toast. Drag across it to spread Marmite and reveal the name James Waite."></canvas>
+<canvas id="crumbs" aria-hidden="true"></canvas>
 <button id="pot" type="button" aria-label="Jar of Marmite: dip your knife here for more">
   <canvas id="jar"></canvas>
 </button>
 </div>
+<button id="biteBtn" type="button">Take a bite</button>
 <p id="hint">Drag to spread the Marmite · dip your knife in the jar for more · double-click for a fresh slice</p>
 
 <script>
@@ -257,6 +281,11 @@
   smear.width = smear.height = TEX;
   const sctx = smear.getContext('2d');
 
+  // Bite mask: alpha = toast that has been eaten
+  const bite = document.createElement('canvas');
+  bite.width = bite.height = TEX;
+  const bctx = bite.getContext('2d', { willReadFrequently: true });
+
   // Name mask, pre-blurred so the shader can shape rounded, gloopy letters
   const text = document.createElement('canvas');
   text.width = text.height = TEX;
@@ -326,7 +355,7 @@
   const fs = `
     precision highp float;
     varying vec2 vUv;
-    uniform sampler2D uMask, uText, uSmear;
+    uniform sampler2D uMask, uText, uSmear, uBite;
     uniform float uRes;
 
     float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
@@ -446,6 +475,16 @@
       float inside = smoothstep(px * 1.5, -px * 1.5, d0);
       if (inside <= 0.) { gl_FragColor = vec4(0.); return; }
 
+      // Bites: the bite mask, cut with a crumbly, uneven edge
+      vec2 bo = vec2(3. / 1024., 0.);
+      float bm = (texture2D(uBite, uv) * 2. + texture2D(uBite, uv + bo) + texture2D(uBite, uv - bo)
+               + texture2D(uBite, uv + bo.yx) + texture2D(uBite, uv - bo.yx)).a / 6.;
+      float bj = bm + (vnoise(uv * 140.) * .6 + vnoise(uv * 45.) * .4 - .5) * .3;
+      float bitten = smoothstep(.47, .53, bj);
+      inside *= 1. - bitten;
+      if (inside <= 0.) { gl_FragColor = vec4(0.); return; }
+      float torn = smoothstep(.1, .47, bj); // freshly exposed crumb along a bite
+
       // Normal step spans ~2 mask texels so bilinear texel edges don't show in the gloss
       float e = max(1. / uRes, 2. / 1024.), thick, tx, ty;
       vec4 s = surf(uv, thick);
@@ -503,6 +542,15 @@
       float env = .06 + .1 * smoothstep(.3, -.4, R.y) + .5 * fres;
       col = marm + vec3(1., .95, .88) * wet * (spec + env * .35 + (box + box2) * (.35 + 2.2 * fres));
 
+      // Torn edge of a bite: pale, porous inner crumb, shadowed right at the edge
+      if (torn > 0.) {
+        vec2 wt = worley(uv * 170.);
+        vec3 crumb = vec3(.93, .83, .62) * (.8 + .2 * vnoise(uv * 420.)) * mix(.5, 1., smoothstep(.05, .32, wt.x));
+        crumb *= .72 + .3 * max(dot(N, L), 0.);
+        col = mix(col, crumb, torn * .9);
+        col *= 1. - smoothstep(.65, 1., torn) * .35;
+      }
+
       col *= mix(.55, 1., smoothstep(0., -.025, d));
       gl_FragColor = vec4(col * inside, inside);
     }`;
@@ -541,6 +589,7 @@
   const maskTex = makeTex(0, 'uMask');
   const textTex = makeTex(1, 'uText');
   const smearTex = makeTex(2, 'uSmear');
+  const biteTex = makeTex(3, 'uBite');
   const uRes = gl.getUniformLocation(prog, 'uRes');
 
   function upload(unit, tex, src) {
@@ -549,7 +598,7 @@
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
   }
 
-  let dirty = true, maskDirty = true, textDirty = true, smearDirty = true;
+  let dirty = true, maskDirty = true, textDirty = true, smearDirty = true, biteDirty = true;
 
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -565,10 +614,12 @@
   function frame() {
     resize();
     drawJar();
+    sizeCrumbs();
     if (dirty) {
       if (maskDirty) { upload(0, maskTex, mask); maskDirty = false; }
       if (textDirty) { upload(1, textTex, text); textDirty = false; }
       if (smearDirty) { upload(2, smearTex, smear); smearDirty = false; }
+      if (biteDirty) { upload(3, biteTex, bite); biteDirty = false; }
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -1018,14 +1069,307 @@
   window.addEventListener('pointerup', stop);
   window.addEventListener('pointercancel', stop);
   pot.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); refill(); } });
-  canvas.addEventListener('dblclick', () => {
+  // ---- Bites and breadcrumbs -------------------------------------------------------------------
+  // Each bite removes a tooth-marked chunk from the edge of what's left. Crumbs spill out and land in
+  // the space the bite uncovered; where each crumb lands comes from a photo, so once the whole slice
+  // is eaten the crumbs form a portrait. A few loose crumbs also land on the toast that's left.
+  const PORTRAIT = 'data:image/jpeg;base64,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';
+  const biteBtn = document.getElementById('biteBtn');
+  const crumbCanvas = document.getElementById('crumbs');
+  const cc = crumbCanvas.getContext('2d');
+  const settled = document.createElement('canvas');
+  const sc = settled.getContext('2d');
+  const BITE_R = 200;
+
+  // The slice outline (same shape as the shader, without its wobble), in -1..1 coordinates
+  function sliceSDFjs(px, py) {
+    const smin = (a, b, k) => { const h = Math.min(Math.max(.5 + .5 * (b - a) / k, 0), 1); return b + (a - b) * h - k * h * (1 - h); };
+    const circ = (cx, cy, r) => Math.hypot(px - cx, py - cy) - r;
+    const qx = Math.abs(px) - .76 + .14, qy = Math.abs(py - .12) - .72 + .14;
+    const body = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - .14;
+    const top = smin(smin(circ(-.4, -.5, .42), circ(.4, -.5, .42), .08), circ(0, -.36, .5), .1);
+    return smin(top, body, .12);
+  }
+  const onSlice = (x, y, margin = 0) => sliceSDFjs(x / TEX * 2 - 1, y / TEX * 2 - 1) < -margin;
+
+  // Crumb sprites: irregular shaded chunks of pale inner crumb, golden toast and dark crust
+  const PALETTES = {
+    pale: ['#f7e8c6', '#e0c089', '#a8804a'],
+    gold: ['#eab872', '#bf7e3a', '#6e4018'],
+    dark: ['#9a5b2b', '#5c3113', '#261307'],
+  };
+  function makeSprite(type) {
+    const S = 48, c = document.createElement('canvas');
+    c.width = c.height = S;
+    const x = c.getContext('2d');
+    const [hi, mid, lo] = PALETTES[type];
+    const n = 6 + Math.floor(Math.random() * 6), pts = [];
+    for (let i = 0; i < n; i++) {
+      const a = i / n * Math.PI * 2 + (Math.random() - .5) * .6;
+      const r = 18 * (.55 + Math.random() * .45);
+      pts.push([S / 2 + Math.cos(a) * r, S / 2 + Math.sin(a) * r * (.7 + Math.random() * .3)]);
+    }
+    const path = new Path2D();
+    const mid2 = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    let m = mid2(pts[n - 1], pts[0]);
+    path.moveTo(m[0], m[1]);
+    for (let i = 0; i < n; i++) {
+      const nm = mid2(pts[i], pts[(i + 1) % n]);
+      path.quadraticCurveTo(pts[i][0], pts[i][1], nm[0], nm[1]);
+    }
+    const g = x.createRadialGradient(S * .38, S * .34, 1, S / 2, S / 2, 22);
+    g.addColorStop(0, hi); g.addColorStop(.55, mid); g.addColorStop(1, lo);
+    x.fillStyle = g;
+    x.fill(path);
+    x.save();
+    x.clip(path);
+    for (let i = 0; i < (type === 'dark' ? 3 : 9); i++) { // pores
+      x.fillStyle = `rgba(60,30,10,${.15 + Math.random() * .3})`;
+      x.beginPath();
+      x.arc(10 + Math.random() * 28, 10 + Math.random() * 28, .6 + Math.random() * 2, 0, Math.PI * 2);
+      x.fill();
+    }
+    x.fillStyle = 'rgba(255,250,235,.3)';
+    x.beginPath(); x.ellipse(S * .38, S * .33, 4, 2.5, -.6, 0, Math.PI * 2); x.fill();
+    x.restore();
+    x.strokeStyle = 'rgba(40,20,8,.35)';
+    x.lineWidth = 1;
+    x.stroke(path);
+    return c;
+  }
+  const SPRITES = {};
+  for (const t of Object.keys(PALETTES)) SPRITES[t] = Array.from({ length: 14 }, () => makeSprite(t));
+  const shadowSprite = (() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 48;
+    const x = c.getContext('2d');
+    const g = x.createRadialGradient(24, 24, 2, 24, 24, 22);
+    g.addColorStop(0, 'rgba(0,0,0,.8)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = g;
+    x.fillRect(0, 0, 48, 48);
+    return c;
+  })();
+  const makeCrumb = (x, y, size, type) => ({
+    x, y, s: size, type, rot: Math.random() * Math.PI * 2,
+    spr: SPRITES[type][Math.floor(Math.random() * SPRITES[type].length)],
+  });
+
+  // Portrait crumbs: brighter parts of the photo get denser, bigger, paler crumbs
+  let portrait = [];
+  const photo = new Image();
+  photo.onload = () => {
+    const P = 160, pc = document.createElement('canvas');
+    pc.width = pc.height = P;
+    const px = pc.getContext('2d', { willReadFrequently: true });
+    px.drawImage(photo, 0, 0, P, P);
+    const lum = px.getImageData(0, 0, P, P).data;
+    const SP = 8;
+    portrait = [];
+    for (let gy = 0; gy < TEX; gy += SP) for (let gx = 0; gx < TEX; gx += SP) {
+      const x = gx + Math.random() * SP, y = gy + Math.random() * SP;
+      if (!onSlice(x, y, .015)) continue;
+      const l = lum[(Math.floor(y / TEX * P) * P + Math.floor(x / TEX * P)) * 4] / 255;
+      const t = Math.min(1, Math.max(0, (l - .2) / .45)), density = t * t * (3 - 2 * t); // high-contrast tone curve
+      if (Math.random() > density) continue;
+      let size = (7 + Math.random() * 7) * (.8 + .35 * l);
+      if (Math.random() < .05 * l) size *= 1.8;
+      const r = Math.random();
+      const type = l > .55 ? (r < .85 ? 'pale' : 'gold') : l > .35 ? (r < .5 ? 'gold' : 'pale') : (r < .6 ? 'dark' : 'gold');
+      const c = makeCrumb(x, y, size, type);
+      c.state = 'waiting';
+      portrait.push(c);
+    }
+  };
+  photo.src = PORTRAIT;
+
+  let loose = [], flying = [], crumbScale = 1, crumbAnim = 0, lastBite = null, eaten = false, sliceCells = 0;
+
+  function sizeCrumbs() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.round(canvas.clientWidth * dpr);
+    if (!w || crumbCanvas.width === w) return;
+    crumbCanvas.width = crumbCanvas.height = settled.width = settled.height = w;
+    crumbScale = w / TEX;
+    rebake();
+  }
+  function drawCrumb(ctx, c, x, y, scale, lift) {
+    const s = c.s * crumbScale * scale, X = x * crumbScale, Y = y * crumbScale;
+    const off = (1 + lift * 10) * crumbScale * c.s / 10;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = .5 * (1 - lift * .6);
+    ctx.drawImage(shadowSprite, X - s * .55 + off, Y - s * .55 + off * 1.6, s * 1.1, s * 1.1);
+    ctx.globalAlpha = 1;
+    const co = Math.cos(c.rot), si = Math.sin(c.rot);
+    ctx.setTransform(co, si, -si, co, X, Y);
+    ctx.drawImage(c.spr, -s / 2, -s / 2, s, s);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+  function rebake() {
+    sc.clearRect(0, 0, settled.width, settled.height);
+    for (const c of portrait) if (c.state === 'landed') drawCrumb(sc, c, c.x, c.y, 1, 0);
+    for (const c of loose) if (c.state === 'landed') drawCrumb(sc, c, c.x, c.y, 1, 0);
+    paintCrumbs();
+  }
+  function paintCrumbs() {
+    cc.setTransform(1, 0, 0, 1, 0, 0);
+    cc.clearRect(0, 0, crumbCanvas.width, crumbCanvas.height);
+    cc.drawImage(settled, 0, 0);
+  }
+  function animateCrumbs(now) {
+    paintCrumbs();
+    const still = [];
+    for (const c of flying) {
+      const p = (now - c.t0) / c.dur;
+      if (p < 0) { still.push(c); continue; }
+      if (p >= 1) {
+        c.state = 'landed';
+        c.rot = c.rot1;
+        drawCrumb(sc, c, c.x, c.y, 1, 0);
+        continue;
+      }
+      const e = p * p; // accelerating as it falls
+      const x = c.sx + (c.x - c.sx) * p, y = c.sy + (c.y - c.sy) * p - Math.sin(p * Math.PI) * c.arc;
+      c.rot = c.rot0 + (c.rot1 - c.rot0) * p;
+      drawCrumb(cc, c, x, y, 1 + (1 - e) * .8, 1 - e);
+      still.push(c);
+    }
+    flying = still;
+    if (flying.length) crumbAnim = requestAnimationFrame(animateCrumbs);
+    else { paintCrumbs(); crumbAnim = 0; }
+  }
+  function launch(c, fromX, fromY, now) {
+    c.state = 'flying';
+    c.sx = fromX; c.sy = fromY;
+    c.rot0 = c.rot; c.rot1 = c.rot + (Math.random() - .5) * 4;
+    c.arc = 10 + Math.random() * 40;
+    c.t0 = now + Math.random() * 380;
+    c.dur = 420 + Math.random() * 520;
+    flying.push(c);
+  }
+
+  // Low-res view of what's left of the slice, to decide where the next bite goes
+  const G = 64, gridCanvas = document.createElement('canvas');
+  gridCanvas.width = gridCanvas.height = G;
+  const gctx = gridCanvas.getContext('2d', { willReadFrequently: true });
+  const sliceCell = new Uint8Array(G * G);
+  for (let j = 0; j < G; j++) for (let i = 0; i < G; i++) {
+    sliceCell[j * G + i] = onSlice((i + .5) / G * TEX, (j + .5) / G * TEX, .01) ? 1 : 0;
+    sliceCells += sliceCell[j * G + i];
+  }
+  function remaining() {
+    gctx.clearRect(0, 0, G, G);
+    gctx.drawImage(bite, 0, 0, G, G);
+    const a = gctx.getImageData(0, 0, G, G).data;
+    const rem = new Uint8Array(G * G);
+    let count = 0;
+    for (let k = 0; k < G * G; k++) if (sliceCell[k] && a[k * 4 + 3] < 128) { rem[k] = 1; count++; }
+    return { rem, count };
+  }
+
+  function drawBite(cx, cy, ang) {
+    const R = BITE_R * (.9 + Math.random() * .2);
+    bctx.save();
+    bctx.fillStyle = '#fff';
+    bctx.translate(cx, cy);
+    bctx.rotate(ang); // local +x points into the toast
+    bctx.beginPath(); bctx.ellipse(0, 0, R, R * .86, 0, 0, Math.PI * 2); bctx.fill();
+    for (let i = 0; i < 9; i++) { // tooth marks along the leading arc
+      const t = -1.15 + i * (2.3 / 8);
+      bctx.beginPath();
+      bctx.arc(Math.cos(t) * R * .96, Math.sin(t) * R * .86 * .96, R * (.16 + Math.random() * .05), 0, Math.PI * 2);
+      bctx.fill();
+    }
+    for (let i = 0; i < 70; i++) { // crumbly, torn edge
+      const t = Math.random() * Math.PI * 2, rr = R * (.94 + Math.random() * .16);
+      bctx.beginPath();
+      bctx.arc(Math.cos(t) * rr, Math.sin(t) * rr * .86, 3 + Math.random() * 9, 0, Math.PI * 2);
+      bctx.fill();
+    }
+    bctx.restore();
+    return R;
+  }
+
+  function takeBite() {
+    if (eaten) return freshSlice();
+    const { rem, count } = remaining();
+    let cx, cy, ang, R = BITE_R;
+    if (count < sliceCells * .06) {
+      // Last mouthful
+      bctx.fillStyle = '#fff';
+      bctx.fillRect(0, 0, TEX, TEX);
+      cx = cy = TEX / 2; ang = 0; R = TEX * .4;
+      eaten = true;
+    } else {
+      // Bite from the edge of what's left: work across the top first, then down, following on from the last bite
+      let best = -Infinity, bi = 0, bj = 0, bnx = 0, bny = 0;
+      for (let j = 0; j < G; j++) for (let i = 0; i < G; i++) {
+        if (!rem[j * G + i]) continue;
+        let nx = 0, ny = 0, open = 0;
+        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+          const ii = i + di, jj = j + dj;
+          if ((di || dj) && (ii < 0 || jj < 0 || ii >= G || jj >= G || !rem[jj * G + ii])) { nx += di; ny += dj; open++; }
+        }
+        if (!open) continue;
+        let score = -j / G + Math.random() * .12;
+        if (lastBite) score -= .6 * Math.hypot(i / G - lastBite[0], j / G - lastBite[1]);
+        if (score > best) { best = score; bi = i; bj = j; const l = Math.hypot(nx, ny) || 1; bnx = nx / l; bny = ny / l; }
+      }
+      lastBite = [bi / G, bj / G];
+      cx = (bi + .5) / G * TEX + bnx * BITE_R * .1;
+      cy = (bj + .5) / G * TEX + bny * BITE_R * .1;
+      ang = Math.atan2(-bny, -bnx);
+      R = drawBite(cx, cy, ang);
+    }
+    biteDirty = dirty = true;
+    canvas.animate([{ transform: 'none' }, { transform: 'translate(-3px, 2px) rotate(-.5deg)' }, { transform: 'none' }], { duration: 180 });
+
+    // Crumbs: portrait crumbs under the bitten area spill out of the bite and land in place
+    const bd = bctx.getImageData(0, 0, TEX, TEX).data;
+    const isBitten = (x, y) => bd[((Math.min(TEX - 1, Math.max(0, y | 0))) * TEX + Math.min(TEX - 1, Math.max(0, x | 0))) * 4 + 3] > 128;
+    const now = performance.now();
+    for (const c of portrait) {
+      if (c.state !== 'waiting' || !isBitten(c.x, c.y)) continue;
+      const k = .45 + Math.random() * .4;
+      launch(c, c.x + (cx - c.x) * k + (Math.random() - .5) * 40, c.y + (cy - c.y) * k + (Math.random() - .5) * 40, now);
+    }
+    // Loose crumbs already on the toast fall away once their spot is eaten; a few new ones land nearby
+    const keep = loose.filter(c => !isBitten(c.x, c.y));
+    const lostLoose = keep.length !== loose.length;
+    loose = keep;
+    if (!eaten) {
+      for (let i = 0; i < 18; i++) {
+        const a = ang + (Math.random() - .5) * 2.6, dist = R * (1.05 + Math.random() * .7);
+        const x = cx + Math.cos(a) * dist, y = cy + Math.sin(a) * dist;
+        if (!onSlice(x, y, .03) || isBitten(x, y)) continue;
+        const c = makeCrumb(x, y, 5 + Math.random() * 9, Math.random() < .6 ? 'pale' : 'gold');
+        launch(c, cx + (Math.random() - .5) * R * .6, cy + (Math.random() - .5) * R * .6, now);
+        loose.push(c);
+      }
+    }
+    if (lostLoose) rebake();
+    if (!crumbAnim && flying.length) crumbAnim = requestAnimationFrame(animateCrumbs);
+    biteBtn.textContent = eaten ? 'Fresh slice' : 'Take another bite';
+  }
+
+  function freshSlice() {
     mctx.clearRect(0, 0, TEX, TEX);
     sctx.clearRect(0, 0, TEX, TEX);
+    bctx.clearRect(0, 0, TEX, TEX);
     unlocked = false;
     supply = 1;
+    eaten = false;
+    lastBite = null;
+    loose = [];
+    flying = [];
+    for (const c of portrait) c.state = 'waiting';
+    rebake();
+    biteBtn.textContent = 'Take a bite';
     updateSupplyUI();
-    maskDirty = smearDirty = dirty = true;
-  });
+    maskDirty = smearDirty = biteDirty = dirty = true;
+  }
+
+  biteBtn.addEventListener('click', takeBite);
+  canvas.addEventListener('dblclick', freshSlice);
   updateSupplyUI();
 
   drawText();
