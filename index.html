@@ -84,68 +84,131 @@
 
   const pot = document.getElementById('pot');
 
-  // Butter-knife cursor, painted at 1x and 2x (128px is the largest cursor browsers allow): brushed
-  // steel blade, bolster, lacquered wooden scales with brass rivets; the blade carries more or less
-  // Marmite depending on what's left. The tip is the hotspot.
+  // Butter-knife cursor, painted at 1x and 2x (128px is the largest cursor browsers allow): a one-piece
+  // polished stainless table knife with a rounded, lightly scalloped blade, a narrow neck and a flared
+  // convex handle. The blade carries more or less Marmite depending on what's left. The tip is the hotspot.
   function paintKnife(S, level) {
     const c = document.createElement('canvas');
     c.width = c.height = S;
     const x = c.getContext('2d');
     const k = S / 128;
-    let seed = 7 + level;
+    let seed = 11 + level;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     x.setTransform(k, 0, 0, k, 0, 0);
     x.translate(64, 64);
     x.rotate(-Math.PI / 4);
     x.translate(-64, -64);
 
-    const blade = new Path2D('M56 62 L56 -8 C56 -17 60 -21 64 -21 C68.5 -21 72 -17 72 -9 L72 62 Z');
-    const bolster = new Path2D(); bolster.roundRect(54.5, 61, 19, 9, 2);
-    const handle = new Path2D(); handle.roundRect(53.5, 69, 21, 80, 7);
-    const lin = (x0, x1, stops) => { const g = x.createLinearGradient(x0, 0, x1, 0); stops.forEach(([o, col]) => g.addColorStop(o, col)); return g; };
+    // Outline (knife drawn vertically, tip at the top), with small scallops along the edge
+    let d = 'M56 -8 C56 -17 60 -21 65 -21 C71 -21 73.4 -15 73.2 -8';
+    for (let y = -8; y < 38; y += 2.2) {
+      const x0 = 73.2 - (y + 8) / 46 * 2.4, x1 = 73.2 - (y + 10.2) / 46 * 2.4;
+      d += ` Q${(x0 + x1) / 2 - .75} ${y + 1.1} ${x1} ${y + 2.2}`;
+    }
+    d += ' C70.6 44 70 50 69.6 54 C69.1 57 68.6 58 68.6 60 C68.6 66 69.5 90 71 132 C71.6 146 67 150 64 150'
+       + ' C61 150 56.4 146 57 132 C58.5 90 59.4 66 59.4 60 C59.4 58 58.4 56 57.6 53 C56.8 50 56 47 56 44 Z';
+    const knife = new Path2D(d);
+    const lerpTable = (ys, vs, y) => {
+      for (let i = 1; i < ys.length; i++) if (y <= ys[i]) return vs[i - 1] + (vs[i] - vs[i - 1]) * (y - ys[i - 1]) / (ys[i] - ys[i - 1]);
+      return vs[vs.length - 1];
+    };
+    const HY = [52, 60, 66, 80, 100, 120, 132, 140, 146, 150];
+    const HL = [56.8, 59.4, 59.3, 58.9, 58.2, 57.4, 57.0, 57.3, 58.6, 63];
+    const HR = [70.1, 68.6, 68.7, 69.2, 69.9, 70.6, 71.0, 70.7, 69.4, 65];
 
     // Soft shadow cast onto the toast
     x.save();
-    x.shadowColor = 'rgba(0,0,0,.55)';
+    x.shadowColor = 'rgba(0,0,0,.5)';
     x.shadowBlur = 6 * k;
     x.shadowOffsetX = 3 * k;
     x.shadowOffsetY = 5 * k;
     x.fillStyle = '#000';
-    x.fill(blade); x.fill(bolster); x.fill(handle);
+    x.fill(knife);
     x.restore();
 
-    // Blade: polished steel, brushed along its length, with a bevelled edge
     x.save();
-    x.clip(blade);
-    x.fillStyle = lin(56, 72, [[0, '#4d545c'], [.14, '#9ba2aa'], [.3, '#f3f5f7'], [.42, '#c4c9cf'], [.6, '#8b929a'], [.78, '#e0e4e8'], [.9, '#a9afb6'], [1, '#596068']]);
-    x.fillRect(50, -25, 30, 90);
-    for (let i = 0; i < 220; i++) {
-      const bx = 56 + rnd() * 16;
-      x.strokeStyle = rnd() < .5 ? `rgba(255,255,255,${rnd() * .12})` : `rgba(20,24,30,${rnd() * .1})`;
-      x.lineWidth = .2 + rnd() * .4;
-      x.beginPath(); x.moveTo(bx, -22); x.lineTo(bx + (rnd() - .5) * .4, 63); x.stroke();
-    }
-    x.fillStyle = lin(68.6, 72, [[0, 'rgba(255,255,255,0)'], [.35, 'rgba(255,255,255,.35)'], [.6, 'rgba(40,45,52,.35)'], [1, 'rgba(255,255,255,.15)']]);
-    x.fillRect(68.6, -25, 4, 90);
-    const win = x.createRadialGradient(61.5, 22, 1, 61.5, 22, 22);
-    win.addColorStop(0, 'rgba(255,255,255,.35)'); win.addColorStop(1, 'rgba(255,255,255,0)');
-    x.save(); x.scale(1, 2.2); x.fillStyle = win; x.fillRect(50, -15, 25, 45); x.restore();
-    const tip = x.createRadialGradient(61, -13, .5, 61, -13, 7);
-    tip.addColorStop(0, 'rgba(255,255,255,.9)'); tip.addColorStop(1, 'rgba(255,255,255,0)');
-    x.fillStyle = tip; x.fillRect(52, -22, 16, 18);
+    x.clip(knife);
+
+    // Blade: flat, polished steel reflecting a window as a soft diagonal band
+    const along = x.createLinearGradient(0, -22, 0, 56);
+    along.addColorStop(0, '#c9ced4'); along.addColorStop(.35, '#7d858d'); along.addColorStop(.7, '#9aa1a9'); along.addColorStop(1, '#5e666e');
+    x.fillStyle = along;
+    x.fillRect(50, -25, 30, 81);
+    const across = x.createLinearGradient(56, 0, 74, 0);
+    across.addColorStop(0, 'rgba(0,0,0,.25)'); across.addColorStop(.25, 'rgba(255,255,255,.08)'); across.addColorStop(1, 'rgba(0,0,0,.18)');
+    x.fillStyle = across;
+    x.fillRect(50, -25, 30, 81);
+    x.save();
+    x.beginPath();
+    x.moveTo(50, 2); x.lineTo(80, -10); x.lineTo(80, 10); x.lineTo(50, 22); x.closePath();
+    x.clip();
+    const band = x.createLinearGradient(0, -6, 0, 18);
+    band.addColorStop(0, 'rgba(255,255,255,0)'); band.addColorStop(.25, 'rgba(255,255,255,.85)');
+    band.addColorStop(.6, 'rgba(240,244,248,.6)'); band.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = band;
+    x.fillRect(50, -12, 30, 36);
     x.restore();
-    x.strokeStyle = 'rgba(45,50,57,.9)';
+    for (let i = 0; i < 120; i++) { // faint polishing marks
+      const bx = 56 + rnd() * 18;
+      x.strokeStyle = rnd() < .5 ? `rgba(255,255,255,${rnd() * .07})` : `rgba(20,24,30,${rnd() * .06})`;
+      x.lineWidth = .2 + rnd() * .3;
+      x.beginPath(); x.moveTo(bx, -22); x.lineTo(bx + (rnd() - .5) * .3, 54); x.stroke();
+    }
+    // Ground bevel along the scalloped edge, and a thin highlight on the spine
+    x.strokeStyle = 'rgba(255,255,255,.55)';
+    x.lineWidth = 1.2;
+    x.beginPath(); x.moveTo(72, -10); x.bezierCurveTo(71.6, 10, 70.6, 30, 69.4, 46); x.stroke();
+    x.strokeStyle = 'rgba(255,255,255,.7)';
     x.lineWidth = .6;
-    x.stroke(blade);
+    x.beginPath(); x.moveTo(56.5, -8); x.lineTo(56.5, 44); x.stroke();
+    // Maker's stamp
+    x.save();
+    x.translate(62.8, 38);
+    x.rotate(Math.PI / 2);
+    x.font = 'bold 2.6px Arial, sans-serif';
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    x.fillStyle = 'rgba(30,34,40,.55)';
+    x.fillText('STAINLESS', 0, 0);
+    x.fillStyle = 'rgba(255,255,255,.35)';
+    x.fillText('STAINLESS', .15, .2);
+    x.restore();
+
+    // Handle: convex and mirror-polished, so the studio shows up as bands running along it
+    const stops = [[0, '#23282e'], [.1, '#8c949c'], [.19, '#ffffff'], [.26, '#d9dee3'], [.38, '#59616a'],
+                   [.52, '#8e959d'], [.66, '#3b424a'], [.8, '#b9c0c7'], [.9, '#f1f4f6'], [1, '#30363c']];
+    for (let y = 50; y < 151; y += .5) {
+      const l = lerpTable(HY, HL, y) - .3, r = lerpTable(HY, HR, y) + .3;
+      const g = x.createLinearGradient(l, 0, r, 0);
+      stops.forEach(([o, col]) => g.addColorStop(o, col));
+      x.globalAlpha = y < 56 ? ((y - 50) / 6) * .5 : 1; // melt into the blade at the neck
+      x.fillStyle = g;
+      x.fillRect(l, y, r - l, 1.2); // rows overlap so no seams show
+    }
+    x.globalAlpha = 1;
+    const len = x.createLinearGradient(0, 54, 0, 150);
+    len.addColorStop(0, 'rgba(0,0,0,.25)'); len.addColorStop(.35, 'rgba(255,255,255,.06)');
+    len.addColorStop(.8, 'rgba(0,0,0,0)'); len.addColorStop(1, 'rgba(0,0,0,.3)');
+    x.fillStyle = len;
+    x.fillRect(50, 54, 30, 97);
+    // Bright glint where the neck curves
+    const glint = x.createRadialGradient(61, 60, .2, 61, 60, 3);
+    glint.addColorStop(0, 'rgba(255,255,255,.9)'); glint.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = glint;
+    x.fillRect(56, 55, 10, 10);
+    x.restore();
+    x.strokeStyle = 'rgba(40,45,52,.85)';
+    x.lineWidth = .5;
+    x.stroke(knife);
 
     // Marmite on the blade
     if (level > 0) {
       const blob = new Path2D(level === 2
-        ? 'M56.6 -10 C57.5 -19.5 70.5 -20.5 71.5 -10 L71.6 27 C70.5 34 67.5 28.5 65.5 35.5 C63.8 41.5 61.5 32.5 59.5 38 C57.5 34 56.8 30 56.8 25 Z'
-        : 'M58 -8 C60 -16 68 -17 70 -9 C71 0 69 8 70 16 C68 20 66 13 64 18 C62 23 60 14 58 19 Z');
+        ? 'M56.5 -9 C57 -19 72 -21 73 -9 L72.2 24 C71 31 68 26 66 33 C64.4 38.5 62 30 60 35 C58 31.5 56.7 28 56.7 23 Z'
+        : 'M58 -8 C60 -17 70 -18 71.5 -8 C72 1 70 8 71 15 C69 19 67 12 65 17 C63 22 61 13 58.5 18 Z');
       x.save();
       x.globalAlpha = level === 2 ? 1 : .85;
-      const mg = x.createLinearGradient(56, 0, 72, 0);
+      const mg = x.createLinearGradient(56, 0, 73, 0);
       mg.addColorStop(0, '#2c1307'); mg.addColorStop(.45, '#170802'); mg.addColorStop(1, '#0b0401');
       x.fillStyle = mg;
       x.fill(blob);
@@ -156,51 +219,14 @@
       x.strokeStyle = 'rgba(255,240,225,.5)';
       x.lineWidth = 1.4;
       x.lineCap = 'round';
-      x.beginPath(); x.moveTo(60.3, -11); x.bezierCurveTo(59.8, 2, 60.3, 14, 61.3, level === 2 ? 28 : 12); x.stroke();
+      x.beginPath(); x.moveTo(60.3, -11); x.bezierCurveTo(59.8, 2, 60.3, 14, 61.3, level === 2 ? 26 : 12); x.stroke();
       x.strokeStyle = 'rgba(255,240,225,.18)';
       x.lineWidth = 2.5;
-      x.beginPath(); x.moveTo(66, -12); x.bezierCurveTo(67, 0, 66, 12, 67, 22); x.stroke();
-      const g = x.createRadialGradient(65, -7, .3, 65, -7, 3.5);
+      x.beginPath(); x.moveTo(67, -12); x.bezierCurveTo(68, 0, 67, 12, 68, 20); x.stroke();
+      const g = x.createRadialGradient(66, -8, .3, 66, -8, 3.5);
       g.addColorStop(0, 'rgba(255,255,255,.75)'); g.addColorStop(1, 'rgba(255,255,255,0)');
-      x.fillStyle = g; x.fillRect(60, -12, 10, 10);
+      x.fillStyle = g; x.fillRect(61, -13, 10, 10);
       x.restore();
-    }
-
-    // Bolster
-    x.fillStyle = lin(54.5, 73.5, [[0, '#353a40'], [.28, '#cdd2d7'], [.38, '#ffffff'], [.62, '#858b92'], [1, '#33383e']]);
-    x.fill(bolster);
-    x.strokeStyle = 'rgba(25,28,32,.9)'; x.lineWidth = .6; x.stroke(bolster);
-    x.fillStyle = 'rgba(0,0,0,.35)'; x.fillRect(54.5, 68.2, 19, 1.2);
-
-    // Handle: dark wood scales with grain, lacquer shine and brass rivets
-    x.save();
-    x.clip(handle);
-    x.fillStyle = lin(53.5, 74.5, [[0, '#1a0c05'], [.22, '#553017'], [.45, '#7c4b27'], [.7, '#5b3419'], [1, '#170a04']]);
-    x.fillRect(50, 66, 30, 86);
-    for (let i = 0; i < 46; i++) {
-      const gx = 53.5 + rnd() * 21, amp = .4 + rnd() * 1.2, fq = .05 + rnd() * .12, ph = rnd() * 6;
-      x.strokeStyle = rnd() < .75 ? `rgba(28,13,5,${.15 + rnd() * .3})` : `rgba(170,110,65,${.08 + rnd() * .12})`;
-      x.lineWidth = .3 + rnd() * .9;
-      x.beginPath();
-      for (let y = 69; y <= 150; y += 2) {
-        const px = gx + Math.sin(y * fq + ph) * amp;
-        y === 69 ? x.moveTo(px, y) : x.lineTo(px, y);
-      }
-      x.stroke();
-    }
-    x.fillStyle = lin(53.5, 74.5, [[0, 'rgba(255,230,200,0)'], [.14, 'rgba(255,230,200,.4)'], [.24, 'rgba(255,230,200,0)'], [.8, 'rgba(255,230,200,0)'], [.88, 'rgba(255,230,200,.12)'], [1, 'rgba(255,230,200,0)']]);
-    x.fillRect(50, 66, 30, 86);
-    const cap = x.createLinearGradient(0, 138, 0, 149);
-    cap.addColorStop(0, 'rgba(0,0,0,0)'); cap.addColorStop(1, 'rgba(0,0,0,.45)');
-    x.fillStyle = cap; x.fillRect(50, 138, 30, 12);
-    x.restore();
-    x.strokeStyle = 'rgba(15,7,3,.95)'; x.lineWidth = .7; x.stroke(handle);
-    for (const ry of [88, 128]) {
-      const rg = x.createRadialGradient(63.2, ry - .9, .2, 64, ry, 2.8);
-      rg.addColorStop(0, '#fff6cf'); rg.addColorStop(.35, '#e0b04c'); rg.addColorStop(.8, '#8a5f17'); rg.addColorStop(1, '#4d3309');
-      x.fillStyle = rg;
-      x.beginPath(); x.arc(64, ry, 2.7, 0, Math.PI * 2); x.fill();
-      x.strokeStyle = 'rgba(30,18,4,.8)'; x.lineWidth = .5; x.stroke();
     }
     return c.toDataURL('image/png');
   }
