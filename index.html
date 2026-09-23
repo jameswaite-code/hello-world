@@ -22,11 +22,36 @@
     overflow: hidden;
   }
   h1 { font-weight: normal; font-size: 1.25rem; margin: 0; opacity: .85; }
+  .stage {
+    --toast: min(68vw, 74vh, 640px);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 2vmin;
+  }
   canvas {
     display: block;
     touch-action: none;
-    width: min(88vw, 74vh, 640px);
-    height: min(88vw, 74vh, 640px);
+    width: var(--toast);
+    height: var(--toast);
+  }
+  #pot {
+    width: calc(var(--toast) * .3);
+    margin-bottom: calc(var(--toast) * .04);
+    padding: 0;
+    border: 0;
+    background: none;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #pot svg { display: block; width: 100%; height: auto; transition: transform .15s ease, filter .4s ease; }
+  #pot.dipping svg { transform: translateY(4px) scale(.97); }
+  #pot.dry svg { animation: nudge 1.6s ease-in-out infinite; filter: drop-shadow(0 0 14px rgba(255, 196, 70, .55)); }
+  #pot:focus-visible { outline: 2px solid #f2c230; outline-offset: 4px; border-radius: 8px; }
+  @keyframes nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  @media (max-width: 640px) {
+    .stage { --toast: min(92vw, 60vh); flex-direction: column; align-items: center; gap: .5rem; }
+    #pot { width: 84px; margin: 0; }
   }
   p { margin: 0; font-size: .85rem; opacity: .45; padding: 0 1rem; }
   .fallback { font-size: clamp(3rem, 12vw, 9rem); font-weight: bold; }
@@ -34,8 +59,59 @@
 </head>
 <body>
 <h1>Hello, my name is…</h1>
+<div class="stage">
 <canvas id="toast" aria-label="A slice of toast. Drag across it to spread Marmite and reveal the name James Waite."></canvas>
-<p id="hint" aria-live="polite">Click and drag to spread the Marmite · double-click for a fresh slice</p>
+<button id="pot" type="button" aria-label="Jar of Marmite: dip your knife here for more">
+  <svg viewBox="0 0 200 250" aria-hidden="true">
+    <defs>
+      <radialGradient id="glass" cx="38%" cy="42%" r="70%">
+        <stop offset="0" stop-color="#5a2a0e"/>
+        <stop offset=".55" stop-color="#2a1105"/>
+        <stop offset="1" stop-color="#0c0401"/>
+      </radialGradient>
+      <linearGradient id="rim" x1="0" x2="1">
+        <stop offset="0" stop-color="#3b1a08"/>
+        <stop offset=".3" stop-color="#8a4a1e"/>
+        <stop offset=".6" stop-color="#2a1004"/>
+        <stop offset="1" stop-color="#5a2a0e"/>
+      </linearGradient>
+      <radialGradient id="surface" cx="40%" cy="40%" r="70%">
+        <stop offset="0" stop-color="#2c1206"/>
+        <stop offset="1" stop-color="#0d0401"/>
+      </radialGradient>
+      <linearGradient id="lid" x1="0" x2="1">
+        <stop offset="0" stop-color="#8a6208"/>
+        <stop offset=".35" stop-color="#f7d046"/>
+        <stop offset=".6" stop-color="#e2ae1c"/>
+        <stop offset="1" stop-color="#7a5406"/>
+      </linearGradient>
+      <radialGradient id="shade" cx="50%" cy="50%" r="50%">
+        <stop offset="0" stop-color="#000" stop-opacity=".7"/>
+        <stop offset="1" stop-color="#000" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <ellipse cx="100" cy="238" rx="92" ry="11" fill="url(#shade)"/>
+    <!-- Bulbous glass jar -->
+    <path d="M62 44 C62 62 58 70 44 84 C20 108 14 140 16 172 C18 214 50 238 100 238 C150 238 182 214 184 172 C186 140 180 108 156 84 C142 70 138 62 138 44 Z" fill="url(#glass)"/>
+    <path d="M40 112 C28 136 26 168 34 196" stroke="#fff" stroke-opacity=".28" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M50 98 C46 102 43 106 41 110" stroke="#fff" stroke-opacity=".35" stroke-width="4" stroke-linecap="round" fill="none"/>
+    <path d="M168 128 C174 150 173 178 164 200" stroke="#ffb070" stroke-opacity=".18" stroke-width="4" stroke-linecap="round" fill="none"/>
+    <!-- Open neck with glossy Marmite inside -->
+    <ellipse cx="100" cy="44" rx="40" ry="11" fill="url(#rim)"/>
+    <ellipse cx="100" cy="45" rx="34" ry="8" fill="url(#surface)"/>
+    <ellipse cx="88" cy="42.5" rx="12" ry="2.4" fill="#fff" opacity=".35"/>
+    <path d="M132 46 C134 54 133 62 130 66 C128 69 125 67 126 63 C127 58 128 52 128 47 Z" fill="#1a0803"/>
+    <ellipse cx="130.5" cy="63" rx="1.2" ry="2" fill="#fff" opacity=".4"/>
+    <!-- Yellow lid resting against the jar -->
+    <g transform="rotate(14 170 214)">
+      <rect x="138" y="196" width="64" height="30" rx="5" fill="url(#lid)"/>
+      <path d="M144 199 v24 M152 199 v24 M160 199 v24 M168 199 v24 M176 199 v24 M184 199 v24 M192 199 v24" stroke="#6a4804" stroke-opacity=".35" stroke-width="1.5"/>
+      <rect x="138" y="196" width="64" height="5" rx="2.5" fill="#fff3b0" opacity=".45"/>
+    </g>
+  </svg>
+</button>
+</div>
+<p id="hint">Drag to spread the Marmite · dip your knife in the jar for more · double-click for a fresh slice</p>
 
 <script>
 (() => {
@@ -52,11 +128,26 @@
     return;
   }
 
-  // Butter-knife cursor, tip at the hotspot
-  const knife = `<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48'><g transform='rotate(-45 24 24)'>
-    <rect x='20' y='1' width='9' height='26' rx='4.5' fill='#d9dde2' stroke='#6d737a' stroke-width='1'/>
-    <rect x='19.5' y='26' width='10' height='21' rx='3' fill='#3a2a1e' stroke='#1a120c' stroke-width='1'/></g></svg>`;
-  canvas.style.cursor = `url("data:image/svg+xml,${encodeURIComponent(knife)}") 9 8, crosshair`;
+  const pot = document.getElementById('pot');
+
+  // Butter-knife cursor, tip at the hotspot; the blade shows how much Marmite is left on it
+  function knifeCursor(level) {
+    const smear = level === 0 ? '' : level === 1
+      ? `<path d='M21.5 3 C23 1.5 26 1.5 27.5 3 L27.5 12 C26 13.5 23 12 21.5 13 Z' fill='#2a1005' opacity='.9'/>`
+      : `<path d='M21 2.5 C23 1 26 1 28 2.5 L28 19 C26 21 23.5 18.5 21 20 Z' fill='#1f0b03'/>
+         <path d='M23 4 L23.8 15' stroke='#fff' stroke-opacity='.35' stroke-width='1' stroke-linecap='round'/>`;
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48'><g transform='rotate(-45 24 24)'>
+      <rect x='20' y='1' width='9' height='26' rx='4.5' fill='#d9dde2' stroke='#6d737a' stroke-width='1'/>${smear}
+      <rect x='19.5' y='26' width='10' height='21' rx='3' fill='#3a2a1e' stroke='#1a120c' stroke-width='1'/></g></svg>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 9 8, crosshair`;
+  }
+  const CURSORS = [0, 1, 2].map(knifeCursor);
+  let cursorLevel = -1;
+  function setCursor(level) {
+    if (level === cursorLevel) return;
+    cursorLevel = level;
+    canvas.style.cursor = pot.style.cursor = CURSORS[level];
+  }
 
   // Marmite paint mask: alpha = amount spread, RG = knife direction (doubled angle)
   const mask = document.createElement('canvas');
@@ -243,10 +334,10 @@
 
       thick = letter * cover;
       float film = paint * (.35 + .65 * streak);
-      float thickness = thick * (.22 + .4 * marble) + halo * cover * .1 + film * .12
+      float thickness = thick * (.17 + .32 * marble) + halo * cover * .08 + film * .12
                       + even * (.2 + .18 * streak) * (.8 + .4 * marble);
       float H = th * .0016 * (1. - thick * .55 - even * .3) + crustRidge * .004
-              + thick * .0028 * (.7 + .3 * marble) + film * .0002 + even * .0012 * (.6 + .4 * streak);
+              + thick * .0022 * (.7 + .3 * marble) + film * .0002 + even * .0012 * (.6 + .4 * streak);
       return vec4(H, thickness, th, d);
     }
 
@@ -302,7 +393,7 @@
 
       // Marmite: Beer-Lambert absorption, a translucent amber-brown the toast shows through, + wet gloss
       float k = s.y;
-      vec3 marm = col * exp(-vec3(2.2, 4.3, 7.8) * k * 1.4)
+      vec3 marm = col * exp(-vec3(2.2, 4.3, 7.8) * k * 1.25)
                 + vec3(.05, .018, .006) * smoothstep(0., .5, k) * (.6 + .6 * diff);
       float wet = smoothstep(0., .06, k);
       float spec = pow(ndh, 180.) * 1.6 + pow(ndh, 22.) * .14;
@@ -388,7 +479,23 @@
   }
 
   // Spreading
-  let spreading = false, last = null, load = 1;
+  // The knife holds enough Marmite for roughly 3–4 letters (measured in distance spread over the toast)
+  const KNIFE_REACH = 3000;
+  let spreading = false, activePointer = null, last = null, supply = 1;
+
+  function updateSupplyUI() {
+    const dry = !unlocked && supply <= .02;
+    setCursor(unlocked || supply > .45 ? 2 : supply > .02 ? 1 : 0);
+    pot.classList.toggle('dry', dry);
+  }
+
+  function refill() {
+    supply = 1;
+    updateSupplyUI();
+    pot.classList.add('dipping');
+    clearTimeout(refill.t);
+    refill.t = setTimeout(() => pot.classList.remove('dipping'), 180);
+  }
 
   function toTex(e) {
     const r = canvas.getBoundingClientRect();
@@ -420,22 +527,32 @@
     const dist = Math.hypot(dx, dy);
     if (dist < 1) return;
     const steps = Math.ceil(dist / 3);
+    let painted = false;
     for (let i = 1; i <= steps; i++) {
       const t = i / steps;
       const x = last.x + dx * t, y = last.y + dy * t;
-      stamp(mctx, x, y, dx, dy, .04 * load);
-      if (unlocked) stamp(sctx, x, y, dx, dy, .03 * load);
-      load = Math.max(.3, load - (dist / steps) * .0005);
+      if (x < 0 || y < 0 || x > TEX || y > TEX) continue; // off the toast (e.g. coming from the jar)
+      painted = true;
+      if (unlocked) {
+        // Mixing the name in never runs out
+        stamp(mctx, x, y, dx, dy, .04);
+        stamp(sctx, x, y, dx, dy, .03);
+      } else {
+        // Spreading thins out as the knife runs dry
+        const amount = .06 * Math.min(1, supply / .25);
+        if (amount > .001) stamp(mctx, x, y, dx, dy, amount);
+        supply = Math.max(0, supply - (dist / steps) / KNIFE_REACH);
+      }
     }
     last = pt;
+    if (!painted) return;
     maskDirty = dirty = true;
     if (unlocked) smearDirty = true;
-    else checkSoon();
+    else { checkSoon(); updateSupplyUI(); }
   }
 
-  // Reveal progress: a letter counts once nearly all of it is covered well enough to show fully
-  const hint = document.getElementById('hint');
-  const HINT_START = hint.textContent;
+  // Reveal progress: a letter counts once nearly all of it is covered well enough to show fully.
+  // Mixing the name into the toast unlocks once half the letters are complete.
   let unlocked = false, checkTimer = 0;
 
   function checkReveal() {
@@ -448,36 +565,47 @@
       for (const [px, py] of pts) if (data[((py - y) * w + (px - x)) * 4 + 3] >= 80) n++;
       return n / pts.length >= .95;
     }).length;
-    if (done === letters.length) {
+    if (done >= Math.ceil(letters.length / 2)) {
       unlocked = true;
-      hint.textContent = 'All there! Now spread it into the toast · double-click for a fresh slice';
-    } else {
-      hint.textContent = `Letters revealed: ${done} / ${letters.length} · double-click for a fresh slice`;
+      updateSupplyUI();
     }
   }
   function checkSoon() { if (!checkTimer) checkTimer = setTimeout(checkReveal, 250); }
 
-  canvas.addEventListener('pointerdown', e => {
+  // Strokes can start on the toast or in the jar and travel between them
+  function overPot(e) {
+    const r = pot.getBoundingClientRect();
+    return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+  }
+  window.addEventListener('pointerdown', e => {
+    if (e.target !== canvas && !pot.contains(e.target)) return;
+    e.preventDefault();
     spreading = true;
+    activePointer = e.pointerId;
     last = toTex(e);
-    load = 1;
-    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+    if (overPot(e)) refill();
   });
-  canvas.addEventListener('pointermove', e => {
-    if (!spreading) return;
+  window.addEventListener('pointermove', e => {
+    if (!spreading || e.pointerId !== activePointer) return;
     const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
-    for (const ev of (events.length ? events : [e])) spreadTo(toTex(ev));
+    for (const ev of (events.length ? events : [e])) {
+      if (overPot(ev)) { if (supply < 1) refill(); last = toTex(ev); }
+      else spreadTo(toTex(ev));
+    }
   });
-  const stop = () => { spreading = false; };
-  canvas.addEventListener('pointerup', stop);
-  canvas.addEventListener('pointercancel', stop);
+  const stop = e => { if (e.pointerId === activePointer) spreading = false; };
+  window.addEventListener('pointerup', stop);
+  window.addEventListener('pointercancel', stop);
+  pot.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); refill(); } });
   canvas.addEventListener('dblclick', () => {
     mctx.clearRect(0, 0, TEX, TEX);
     sctx.clearRect(0, 0, TEX, TEX);
     unlocked = false;
-    hint.textContent = HINT_START;
+    supply = 1;
+    updateSupplyUI();
     maskDirty = smearDirty = dirty = true;
   });
+  updateSupplyUI();
 
   drawText();
   if (document.fonts && document.fonts.load) {
