@@ -23,11 +23,8 @@
   }
   h1 { font-weight: normal; font-size: 1.25rem; margin: 0; opacity: .85; }
   .stage {
-    --toast: min(68vw, 74vh, 640px);
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    gap: 2vmin;
+    --toast: min(60vw, 74vh, 640px);
+    position: relative; /* the toast alone sets the stage size, so it stays centred */
   }
   #toast {
     display: block;
@@ -36,8 +33,10 @@
     height: var(--toast);
   }
   #pot {
+    position: absolute;
+    left: calc(100% + 2vmin);
+    bottom: calc(var(--toast) * .04);
     width: calc(var(--toast) * .3);
-    margin-bottom: calc(var(--toast) * .04);
     padding: 0;
     border: 0;
     background: none;
@@ -50,8 +49,8 @@
   #pot:focus-visible { outline: 2px solid #f2c230; outline-offset: 4px; border-radius: 8px; }
   @keyframes nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
   @media (max-width: 640px) {
-    .stage { --toast: min(92vw, 60vh); flex-direction: column; align-items: center; gap: .5rem; }
-    #pot { width: 110px; margin: 0; }
+    .stage { --toast: min(92vw, 60vh); display: flex; flex-direction: column; align-items: center; gap: .5rem; }
+    #pot { position: static; width: 110px; }
   }
   p { margin: 0; font-size: .85rem; opacity: .45; padding: 0 1rem; }
   .fallback { font-size: clamp(3rem, 12vw, 9rem); font-weight: bold; }
