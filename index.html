@@ -973,7 +973,7 @@
   }
 
   // Reveal progress: a letter counts once nearly all of it is covered well enough to show fully.
-  // Mixing the name into the toast unlocks once half the letters are complete.
+  // Mixing the name into the toast unlocks once 75% of the letters are complete.
   let unlocked = false, checkTimer = 0;
 
   function checkReveal() {
@@ -986,7 +986,7 @@
       for (const [px, py] of pts) if (data[((py - y) * w + (px - x)) * 4 + 3] >= 80) n++;
       return n / pts.length >= .95;
     }).length;
-    if (done >= Math.ceil(letters.length / 2)) {
+    if (done >= Math.ceil(letters.length * .75)) {
       unlocked = true;
       updateSupplyUI();
     }
