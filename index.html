@@ -35,7 +35,7 @@
 <body>
 <h1>Hello, my name is…</h1>
 <canvas id="toast" aria-label="A slice of toast. Drag across it to spread Marmite and reveal the name James Waite."></canvas>
-<p>Click and drag to spread the Marmite · double-click for a fresh slice</p>
+<p id="hint" aria-live="polite">Click and drag to spread the Marmite · double-click for a fresh slice</p>
 
 <script>
 (() => {
@@ -61,7 +61,12 @@
   // Marmite paint mask: alpha = amount spread, RG = knife direction (doubled angle)
   const mask = document.createElement('canvas');
   mask.width = mask.height = TEX;
-  const mctx = mask.getContext('2d');
+  const mctx = mask.getContext('2d', { willReadFrequently: true });
+
+  // Smear mask: once the whole name is revealed, further spreading melts it into an even layer
+  const smear = document.createElement('canvas');
+  smear.width = smear.height = TEX;
+  const sctx = smear.getContext('2d');
 
   // Name mask, pre-blurred so the shader can shape rounded, gloopy letters
   const text = document.createElement('canvas');
@@ -85,6 +90,43 @@
     tctx.fillStyle = '#fff';
     const ys = [0.41, 0.66];
     NAME.forEach((line, i) => tctx.fillText(line, TEX / 2 - TEX * 2, TEX * ys[i]));
+    buildLetterPoints(tctx.font, size, ys);
+  }
+
+  // Sample points inside each letter, used to tell when every letter has been fully revealed
+  let letters = [], lettersRect = null;
+  function buildLetterPoints(font, size, ys) {
+    const g = document.createElement('canvas');
+    g.width = g.height = TEX;
+    const gc = g.getContext('2d', { willReadFrequently: true });
+    gc.font = font;
+    gc.textAlign = 'left';
+    gc.textBaseline = 'middle';
+    letters = [];
+    let minX = TEX, minY = TEX, maxX = 0, maxY = 0;
+    NAME.forEach((line, li) => {
+      const x0 = TEX / 2 - gc.measureText(line).width / 2;
+      const y = TEX * ys[li];
+      for (let i = 0; i < line.length; i++) {
+        const x = x0 + gc.measureText(line.slice(0, i)).width;
+        gc.clearRect(0, 0, TEX, TEX);
+        gc.fillText(line[i], x, y);
+        const bx = Math.max(0, Math.floor(x - size * .1));
+        const by = Math.max(0, Math.floor(y - size * .7));
+        const bw = Math.min(TEX - bx, Math.ceil(gc.measureText(line[i]).width + size * .2));
+        const bh = Math.min(TEX - by, Math.ceil(size * 1.4));
+        const img = gc.getImageData(bx, by, bw, bh).data;
+        const pts = [];
+        for (let py = 0; py < bh; py += 5) for (let px = 0; px < bw; px += 5) {
+          if (img[(py * bw + px) * 4 + 3] > 200) pts.push([bx + px, by + py]);
+        }
+        if (!pts.length) continue;
+        letters.push(pts);
+        minX = Math.min(minX, bx); minY = Math.min(minY, by);
+        maxX = Math.max(maxX, bx + bw); maxY = Math.max(maxY, by + bh);
+      }
+    });
+    lettersRect = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
   }
 
   const vs = `
@@ -95,7 +137,7 @@
   const fs = `
     precision highp float;
     varying vec2 vUv;
-    uniform sampler2D uMask, uText;
+    uniform sampler2D uMask, uText, uSmear;
     uniform float uRes;
 
     float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
@@ -177,9 +219,17 @@
       // Warp the letters so their edges wander like something melting
       vec2 warp = (vec2(fbm(uv * 7.), fbm(uv * 7. + 13.)) - .5) * .022
                 + (vec2(vnoise(uv * 30.), vnoise(uv * 30. + 9.3)) - .5) * .006;
+      // Smear (after the name is fully revealed): drags the letters along the knife and dissolves them
+      float sm = (texture2D(uSmear, uv) * 2. + texture2D(uSmear, uv + o) + texture2D(uSmear, uv - o)
+               + texture2D(uSmear, uv + o.yx) + texture2D(uSmear, uv - o.yx)).a / 6.;
+      vec2 sd = dir * sm * .016;
       float t = texture2D(uText, uv + warp).a;
-      float letter = smoothstep(.12, .75, t);
-      float halo = smoothstep(.02, .35, t); // Marmite bleeding out into the butter
+      float tS = (t + texture2D(uText, uv + warp + sd).a + texture2D(uText, uv + warp - sd).a
+                 + texture2D(uText, uv + warp + sd * 2.).a + texture2D(uText, uv + warp - sd * 2.).a) / 5.;
+      t = mix(t, tS, smoothstep(0., .5, sm));
+      float fade = smoothstep(.05, .95, sm);
+      float letter = smoothstep(.12, .75, t) * (1. - fade);
+      float halo = smoothstep(.02, .35, t) * (1. - fade); // Marmite bleeding out into the butter
 
       // Knife streaks run along the direction of the stroke
       vec2 q = vec2(dot(uv, dir), dot(uv, vec2(-dir.y, dir.x)));
@@ -188,11 +238,15 @@
       // Streaks of butter swirled through the Marmite
       float marble = smoothstep(.2, .8, vnoise(vec2(q.x * 5., q.y * 26.) + fbm(uv * 12.) * 2.));
 
+      // Even, everyday layer of Marmite wherever it has been spread out
+      float even = smoothstep(.02 + .1 * n, .4 + .1 * n, sm);
+
       thick = letter * cover;
       float film = paint * (.35 + .65 * streak);
-      float thickness = thick * (.22 + .4 * marble) + halo * cover * .1 + film * .12;
-      float H = th * .0016 * (1. - thick * .55) + crustRidge * .004
-              + thick * .0028 * (.7 + .3 * marble) + film * .0002;
+      float thickness = thick * (.22 + .4 * marble) + halo * cover * .1 + film * .12
+                      + even * (.2 + .18 * streak) * (.8 + .4 * marble);
+      float H = th * .0016 * (1. - thick * .55 - even * .3) + crustRidge * .004
+              + thick * .0028 * (.7 + .3 * marble) + film * .0002 + even * .0012 * (.6 + .4 * streak);
       return vec4(H, thickness, th, d);
     }
 
@@ -243,6 +297,7 @@
       // Marmite casts a faint shadow onto the toast beside it
       vec2 so = uv + normalize(L.xy) * .006;
       float occ = smoothstep(.12, .75, texture2D(uText, so).a) * smoothstep(.03, .2, texture2D(uMask, so).a);
+      occ *= 1. - texture2D(uSmear, so).a;
       col *= 1. - clamp(occ - thick, 0., 1.) * .15;
 
       // Marmite: Beer-Lambert absorption, a translucent amber-brown the toast shows through, + wet gloss
@@ -296,6 +351,7 @@
   }
   const maskTex = makeTex(0, 'uMask');
   const textTex = makeTex(1, 'uText');
+  const smearTex = makeTex(2, 'uSmear');
   const uRes = gl.getUniformLocation(prog, 'uRes');
 
   function upload(unit, tex, src) {
@@ -304,7 +360,7 @@
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
   }
 
-  let dirty = true, maskDirty = true, textDirty = true;
+  let dirty = true, maskDirty = true, textDirty = true, smearDirty = true;
 
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -322,6 +378,7 @@
     if (dirty) {
       if (maskDirty) { upload(0, maskTex, mask); maskDirty = false; }
       if (textDirty) { upload(1, textTex, text); textDirty = false; }
+      if (smearDirty) { upload(2, smearTex, smear); smearDirty = false; }
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -338,24 +395,24 @@
     return { x: (e.clientX - r.left) / r.width * TEX, y: (e.clientY - r.top) / r.height * TEX };
   }
 
-  function stamp(x, y, dx, dy, amount) {
+  function stamp(ctx, x, y, dx, dy, amount) {
     const ang = Math.atan2(dy, dx);
     const r = Math.round((Math.cos(2 * ang) * .5 + .5) * 255);
     const g = Math.round((Math.sin(2 * ang) * .5 + .5) * 255);
     const radius = 44 + Math.random() * 6;
-    mctx.save();
-    mctx.translate(x, y);
-    mctx.rotate(ang);
-    mctx.scale(.38, 1); // knife edge is wide across the stroke, narrow along it
-    const grad = mctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    ctx.scale(.38, 1); // knife edge is wide across the stroke, narrow along it
+    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
     grad.addColorStop(0, `rgba(${r},${g},128,${amount * .85})`);
     grad.addColorStop(.65, `rgba(${r},${g},128,${amount})`);
     grad.addColorStop(1, `rgba(${r},${g},128,0)`);
-    mctx.fillStyle = grad;
-    mctx.beginPath();
-    mctx.arc(0, 0, radius, 0, Math.PI * 2);
-    mctx.fill();
-    mctx.restore();
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
   function spreadTo(pt) {
@@ -365,18 +422,46 @@
     const steps = Math.ceil(dist / 3);
     for (let i = 1; i <= steps; i++) {
       const t = i / steps;
-      stamp(last.x + dx * t, last.y + dy * t, dx, dy, .04 * load);
+      const x = last.x + dx * t, y = last.y + dy * t;
+      stamp(mctx, x, y, dx, dy, .04 * load);
+      if (unlocked) stamp(sctx, x, y, dx, dy, .03 * load);
       load = Math.max(.3, load - (dist / steps) * .0005);
     }
     last = pt;
     maskDirty = dirty = true;
+    if (unlocked) smearDirty = true;
+    else checkSoon();
   }
+
+  // Reveal progress: a letter counts once nearly all of it is covered well enough to show fully
+  const hint = document.getElementById('hint');
+  const HINT_START = hint.textContent;
+  let unlocked = false, checkTimer = 0;
+
+  function checkReveal() {
+    checkTimer = 0;
+    if (unlocked || !lettersRect) return;
+    const { x, y, w, h } = lettersRect;
+    const data = mctx.getImageData(x, y, w, h).data;
+    const done = letters.filter(pts => {
+      let n = 0;
+      for (const [px, py] of pts) if (data[((py - y) * w + (px - x)) * 4 + 3] >= 80) n++;
+      return n / pts.length >= .95;
+    }).length;
+    if (done === letters.length) {
+      unlocked = true;
+      hint.textContent = 'All there! Now spread it into the toast · double-click for a fresh slice';
+    } else {
+      hint.textContent = `Letters revealed: ${done} / ${letters.length} · double-click for a fresh slice`;
+    }
+  }
+  function checkSoon() { if (!checkTimer) checkTimer = setTimeout(checkReveal, 250); }
 
   canvas.addEventListener('pointerdown', e => {
     spreading = true;
-    canvas.setPointerCapture(e.pointerId);
     last = toTex(e);
     load = 1;
+    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
   });
   canvas.addEventListener('pointermove', e => {
     if (!spreading) return;
@@ -388,7 +473,10 @@
   canvas.addEventListener('pointercancel', stop);
   canvas.addEventListener('dblclick', () => {
     mctx.clearRect(0, 0, TEX, TEX);
-    maskDirty = dirty = true;
+    sctx.clearRect(0, 0, TEX, TEX);
+    unlocked = false;
+    hint.textContent = HINT_START;
+    maskDirty = smearDirty = dirty = true;
   });
 
   drawText();
