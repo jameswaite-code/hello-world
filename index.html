@@ -476,14 +476,16 @@
       if (inside <= 0.) { gl_FragColor = vec4(0.); return; }
 
       // Bites: the bite mask, cut with a crumbly, uneven edge
-      vec2 bo = vec2(3. / 1024., 0.);
+      vec2 bo = vec2(6. / 1024., 0.);
       float bm = (texture2D(uBite, uv) * 2. + texture2D(uBite, uv + bo) + texture2D(uBite, uv - bo)
                + texture2D(uBite, uv + bo.yx) + texture2D(uBite, uv - bo.yx)).a / 6.;
-      float bj = bm + (vnoise(uv * 140.) * .6 + vnoise(uv * 45.) * .4 - .5) * .3;
-      float bitten = smoothstep(.47, .53, bj);
+      // Ragged, torn outline: several scales of noise so bits of crumb stick out and break away
+      float rag = vnoise(uv * 230.) * .45 + vnoise(uv * 80.) * .35 + vnoise(uv * 28.) * .2;
+      float bj = bm + (rag - .5) * .5;
+      float bitten = smoothstep(.48, .52, bj);
       inside *= 1. - bitten;
       if (inside <= 0.) { gl_FragColor = vec4(0.); return; }
-      float torn = smoothstep(.1, .47, bj); // freshly exposed crumb along a bite
+      float torn = smoothstep(.04, .48, bj); // freshly exposed crumb along a bite
 
       // Normal step spans ~2 mask texels so bilinear texel edges don't show in the gloss
       float e = max(1. / uRes, 2. / 1024.), thick, tx, ty;
@@ -659,12 +661,15 @@
     }
     float fresnel(vec3 n, float f0) { return f0 + (1. - f0) * pow(1. - max(n.z, 0.), 5.); }
 
-    // Squat, pot-bellied profile: short wide neck, round belly, narrower rounded base
-    const float Y_TOP = .3, Y_BOT = 1.14;
+    // Marmite pot profile: short wide neck, rounded shoulders, a fat belly widest just below the middle,
+    // curving in to a narrower rounded base
+    const float Y_TOP = .28, Y_BOT = 1.14;
+    float smax(float a, float b, float k) { float h = clamp(.5 + .5 * (a - b) / k, 0., 1.); return mix(b, a, h) + k * h * (1. - h); }
     float radius(float y) {
-      float t = clamp((y - Y_TOP) / (Y_BOT - Y_TOP), 0., 1.);
-      float dome = pow(sin(3.14159 * clamp((t - .08) / .92, 0., 1.)), .6);
-      float r = mix(mix(.265, .27, smoothstep(.3, .75, t)), .39, dome);
+      float t = (y - .755) / .425;
+      float body = .4 * pow(max(0., 1. - pow(abs(t), 2.6)), 1. / 2.6);
+      float neck = .265 * (1. - smoothstep(.4, .5, y));
+      float r = smax(neck, body, .04);
       float k = max(0., y - (Y_BOT - .035)); // rounded base
       return r - (.035 - sqrt(max(0., .035 * .035 - k * k)));
     }
@@ -690,7 +695,7 @@
 
     vec3 shadeGlass(vec2 p, float r) {
       float xn = clamp(p.x / max(r, 1e-3), -1., 1.), zn = sqrt(max(0., 1. - xn * xn));
-      float thread = (p.y > .308 && p.y < .36) ? sin(p.y * 280.) * .35 : 0.; // screw thread on the neck
+      float thread = (p.y > .29 && p.y < .345) ? sin(p.y * 280.) * .35 : 0.; // screw thread on the neck
       vec3 N = bodyNormal(p, r, thread);
       float F = fresnel(N, .04);
       float edge = pow(1. - zn, 2.5);
@@ -777,8 +782,8 @@
 
       // Yellow screw lid resting on the table in front
       {
-        vec2 lc = vec2(.31, 1.15);
-        float lr = .23, lh = .085, lry = lr * .32;
+        vec2 lc = vec2(.28, 1.15);
+        float lr = .24, lh = .085, lry = lr * .32;
         float yT = lc.y - lh;
         float xl = (p.x - lc.x) / lr;
         vec3 albedo = vec3(.98, .72, .09);
@@ -1092,30 +1097,50 @@
   }
   const onSlice = (x, y, margin = 0) => sliceSDFjs(x / TEX * 2 - 1, y / TEX * 2 - 1) < -margin;
 
-  // Crumb sprites: irregular shaded chunks of pale inner crumb, golden toast and dark crust
+  // Crumb sprites in several tones (pale inner crumb, golden toast, dark crust) and shapes: rounded
+  // porous chunks, angular shards, thin curved crust flakes and fine dust
   const PALETTES = {
     pale: ['#f7e8c6', '#e0c089', '#a8804a'],
     gold: ['#eab872', '#bf7e3a', '#6e4018'],
     dark: ['#9a5b2b', '#5c3113', '#261307'],
   };
-  function makeSprite(type) {
+  function makeSprite(tone, shape) {
     const S = 48, c = document.createElement('canvas');
     c.width = c.height = S;
     const x = c.getContext('2d');
-    const [hi, mid, lo] = PALETTES[type];
-    const n = 6 + Math.floor(Math.random() * 6), pts = [];
-    for (let i = 0; i < n; i++) {
-      const a = i / n * Math.PI * 2 + (Math.random() - .5) * .6;
-      const r = 18 * (.55 + Math.random() * .45);
-      pts.push([S / 2 + Math.cos(a) * r, S / 2 + Math.sin(a) * r * (.7 + Math.random() * .3)]);
-    }
+    const [hi, mid, lo] = PALETTES[tone];
     const path = new Path2D();
-    const mid2 = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-    let m = mid2(pts[n - 1], pts[0]);
-    path.moveTo(m[0], m[1]);
-    for (let i = 0; i < n; i++) {
-      const nm = mid2(pts[i], pts[(i + 1) % n]);
-      path.quadraticCurveTo(pts[i][0], pts[i][1], nm[0], nm[1]);
+    const rot = Math.random() * Math.PI * 2;
+    const at = (a, r, sx = 1, sy = 1) => [S / 2 + Math.cos(a + rot) * r * sx, S / 2 + Math.sin(a + rot) * r * sy];
+    if (shape === 'flake') {
+      // Thin curved sliver of crust
+      const len = 17 + Math.random() * 5, th = 3 + Math.random() * 4, bend = (Math.random() - .5) * 14;
+      const ca = Math.cos(rot), sa = Math.sin(rot);
+      const P = (u, v) => [S / 2 + u * ca - v * sa, S / 2 + u * sa + v * ca];
+      const p0 = P(-len, 0), p1 = P(len, 0), c0 = P(0, bend - th), c1 = P(0, bend + th);
+      path.moveTo(...p0); path.quadraticCurveTo(...c0, ...p1); path.quadraticCurveTo(...c1, ...p0);
+    } else if (shape === 'dust') {
+      const r = 8 + Math.random() * 6;
+      path.ellipse(S / 2, S / 2, r, r * (.6 + Math.random() * .4), rot, 0, Math.PI * 2);
+    } else {
+      const angular = shape === 'shard';
+      const n = angular ? 4 + Math.floor(Math.random() * 3) : 7 + Math.floor(Math.random() * 6);
+      const sy = angular ? .4 + Math.random() * .4 : .65 + Math.random() * .35;
+      const pts = [];
+      for (let i = 0; i < n; i++) pts.push(at(i / n * Math.PI * 2 + (Math.random() - .5) * (angular ? 1 : .6), 19 * (.5 + Math.random() * .5), 1, sy));
+      if (angular) {
+        path.moveTo(...pts[0]);
+        for (let i = 1; i < n; i++) path.lineTo(...pts[i]);
+        path.closePath();
+      } else {
+        const mid2 = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        path.moveTo(...mid2(pts[n - 1], pts[0]));
+        for (let i = 0; i < n; i++) {
+          const nm = mid2(pts[i], pts[(i + 1) % n]);
+          if (Math.random() < .3) { path.lineTo(...pts[i]); path.lineTo(...nm); } // the odd broken corner
+          else path.quadraticCurveTo(...pts[i], ...nm);
+        }
+      }
     }
     const g = x.createRadialGradient(S * .38, S * .34, 1, S / 2, S / 2, 22);
     g.addColorStop(0, hi); g.addColorStop(.55, mid); g.addColorStop(1, lo);
@@ -1123,22 +1148,29 @@
     x.fill(path);
     x.save();
     x.clip(path);
-    for (let i = 0; i < (type === 'dark' ? 3 : 9); i++) { // pores
-      x.fillStyle = `rgba(60,30,10,${.15 + Math.random() * .3})`;
+    const pores = shape === 'chunk' ? 12 : shape === 'shard' ? 4 : shape === 'flake' ? 2 : 0;
+    for (let i = 0; i < pores; i++) {
+      x.fillStyle = `rgba(60,30,10,${.15 + Math.random() * .35})`;
       x.beginPath();
-      x.arc(10 + Math.random() * 28, 10 + Math.random() * 28, .6 + Math.random() * 2, 0, Math.PI * 2);
+      x.arc(8 + Math.random() * 32, 8 + Math.random() * 32, .6 + Math.random() * 2.4, 0, Math.PI * 2);
       x.fill();
     }
+    if (shape === 'flake') { // toasted top, lighter broken edge
+      x.strokeStyle = 'rgba(255,230,190,.35)';
+      x.lineWidth = 2;
+      x.stroke(path);
+    }
     x.fillStyle = 'rgba(255,250,235,.3)';
-    x.beginPath(); x.ellipse(S * .38, S * .33, 4, 2.5, -.6, 0, Math.PI * 2); x.fill();
+    x.beginPath(); x.ellipse(S * .4, S * .36, 3.5, 2, -.6, 0, Math.PI * 2); x.fill();
     x.restore();
     x.strokeStyle = 'rgba(40,20,8,.35)';
     x.lineWidth = 1;
     x.stroke(path);
     return c;
   }
+  const SHAPES = ['chunk', 'shard', 'flake', 'dust'];
   const SPRITES = {};
-  for (const t of Object.keys(PALETTES)) SPRITES[t] = Array.from({ length: 14 }, () => makeSprite(t));
+  for (const t of Object.keys(PALETTES)) for (const sh of SHAPES) SPRITES[t + sh] = Array.from({ length: 10 }, () => makeSprite(t, sh));
   const shadowSprite = (() => {
     const c = document.createElement('canvas');
     c.width = c.height = 48;
@@ -1149,10 +1181,17 @@
     x.fillRect(0, 0, 48, 48);
     return c;
   })();
-  const makeCrumb = (x, y, size, type) => ({
-    x, y, s: size, type, rot: Math.random() * Math.PI * 2,
-    spr: SPRITES[type][Math.floor(Math.random() * SPRITES[type].length)],
-  });
+  // A random crumb: mostly small, some medium, the occasional big chunk
+  function randomCrumb(x, y, tone, sizeScale = 1) {
+    const r = Math.random();
+    const shape = r < .45 ? 'chunk' : r < .65 ? 'shard' : r < .8 ? 'flake' : 'dust';
+    let size = shape === 'dust' ? 2.5 + Math.random() * 3 : 4 + 18 * Math.pow(Math.random(), 2.2);
+    if (shape === 'flake') size *= 1.25;
+    if (shape === 'chunk' && Math.random() < .04) size = 22 + Math.random() * 10;
+    if (shape === 'flake' && tone === 'pale') tone = 'gold';
+    const set = SPRITES[tone + shape];
+    return { x, y, s: size * sizeScale, rot: Math.random() * Math.PI * 2, spr: set[Math.floor(Math.random() * set.length)] };
+  }
 
   // Portrait crumbs: brighter parts of the photo get denser, bigger, paler crumbs
   let portrait = [];
@@ -1171,13 +1210,18 @@
       const l = lum[(Math.floor(y / TEX * P) * P + Math.floor(x / TEX * P)) * 4] / 255;
       const t = Math.min(1, Math.max(0, (l - .2) / .45)), density = t * t * (3 - 2 * t); // high-contrast tone curve
       if (Math.random() > density) continue;
-      let size = (7 + Math.random() * 7) * (.8 + .35 * l);
-      if (Math.random() < .05 * l) size *= 1.8;
       const r = Math.random();
-      const type = l > .55 ? (r < .85 ? 'pale' : 'gold') : l > .35 ? (r < .5 ? 'gold' : 'pale') : (r < .6 ? 'dark' : 'gold');
-      const c = makeCrumb(x, y, size, type);
+      const tone = l > .55 ? (r < .85 ? 'pale' : 'gold') : l > .35 ? (r < .5 ? 'gold' : 'pale') : (r < .6 ? 'dark' : 'gold');
+      const c = randomCrumb(x, y, tone, .85 + .4 * l);
       c.state = 'waiting';
       portrait.push(c);
+      if (Math.random() < .5 * density) { // fine dust around it
+        const d = randomCrumb(x + (Math.random() - .5) * SP, y + (Math.random() - .5) * SP, tone);
+        d.s = 2 + Math.random() * 3;
+        d.spr = SPRITES[tone + 'dust'][Math.floor(Math.random() * 10)];
+        d.state = 'waiting';
+        portrait.push(d);
+      }
     }
   };
   photo.src = PORTRAIT;
@@ -1237,12 +1281,12 @@
     if (flying.length) crumbAnim = requestAnimationFrame(animateCrumbs);
     else { paintCrumbs(); crumbAnim = 0; }
   }
-  function launch(c, fromX, fromY, now) {
+  function launch(c, fromX, fromY, now, spread = 380) {
     c.state = 'flying';
     c.sx = fromX; c.sy = fromY;
     c.rot0 = c.rot; c.rot1 = c.rot + (Math.random() - .5) * 4;
     c.arc = 10 + Math.random() * 40;
-    c.t0 = now + Math.random() * 380;
+    c.t0 = now + Math.random() * spread;
     c.dur = 420 + Math.random() * 520;
     flying.push(c);
   }
@@ -1266,23 +1310,46 @@
     return { rem, count };
   }
 
+  // A bite follows a dental arch: wider than it is deep, scalloped by teeth (small at the front,
+  // wider towards the sides) with points of bread left between them, and a ragged, torn edge.
   function drawBite(cx, cy, ang) {
-    const R = BITE_R * (.9 + Math.random() * .2);
+    const R = BITE_R * (.92 + Math.random() * .16);
+    const W = R * 1.15, D = R * (.92 + Math.random() * .16);
+    const widths = [.3, .26, .22, .2, .2, .22, .26, .3].map(w => w * (.9 + Math.random() * .2));
+    const total = widths.reduce((a, b) => a + b, 0);
+    let u0 = -total / 2;
+    const teeth = widths.map((w, i) => {
+      const t = { c: u0 + w / 2, hw: w / 2, depth: R * (i === 0 || i === 7 ? .13 : i === 1 || i === 6 ? .11 : .08) * (.8 + Math.random() * .4) };
+      u0 += w;
+      return t;
+    });
+    const ph = [Math.random() * 6, Math.random() * 6, Math.random() * 6];
+    const pts = [];
+    // The arch curves back outward past the toast's edge and the shape closes with a rounded back,
+    // so no straight cut ever crosses the bread
+    for (let k = 0; k <= 200; k++) {
+      const u = -1.25 + 2.5 * k / 200, au = Math.abs(u);
+      let xx = D * (1 - Math.pow(au, 2.6));
+      for (const t of teeth) { const q = (u - t.c) / t.hw; if (q > -1 && q < 1) xx += t.depth * Math.sqrt(1 - q * q); }
+      xx += R * (.018 * Math.sin(u * 23 + ph[0]) + .012 * Math.sin(u * 51 + ph[1]) + .008 * Math.sin(u * 97 + ph[2]));
+      xx += R * .01 * (Math.random() - .5);
+      pts.push([xx, u * W]);
+    }
     bctx.save();
     bctx.fillStyle = '#fff';
     bctx.translate(cx, cy);
-    bctx.rotate(ang); // local +x points into the toast
-    bctx.beginPath(); bctx.ellipse(0, 0, R, R * .86, 0, 0, Math.PI * 2); bctx.fill();
-    for (let i = 0; i < 9; i++) { // tooth marks along the leading arc
-      const t = -1.15 + i * (2.3 / 8);
+    bctx.rotate(ang); // local +x points into the toast, y runs along its edge
+    bctx.beginPath();
+    bctx.moveTo(pts[0][0], pts[0][1]);
+    for (const [px, py] of pts) bctx.lineTo(px, py);
+    const [ex, ey] = pts[pts.length - 1];
+    bctx.bezierCurveTo(ex - R * .9, ey * 1.05, pts[0][0] - R * .9, pts[0][1] * 1.05, pts[0][0], pts[0][1]);
+    bctx.closePath();
+    bctx.fill();
+    for (let i = 0; i < 5; i++) { // a few torn nibbles along the edge
+      const [px, py] = pts[30 + Math.floor(Math.random() * 140)];
       bctx.beginPath();
-      bctx.arc(Math.cos(t) * R * .96, Math.sin(t) * R * .86 * .96, R * (.16 + Math.random() * .05), 0, Math.PI * 2);
-      bctx.fill();
-    }
-    for (let i = 0; i < 70; i++) { // crumbly, torn edge
-      const t = Math.random() * Math.PI * 2, rr = R * (.94 + Math.random() * .16);
-      bctx.beginPath();
-      bctx.arc(Math.cos(t) * rr, Math.sin(t) * rr * .86, 3 + Math.random() * 9, 0, Math.PI * 2);
+      bctx.ellipse(px, py, R * (.03 + Math.random() * .05), R * (.02 + Math.random() * .04), Math.random() * 3, 0, Math.PI * 2);
       bctx.fill();
     }
     bctx.restore();
@@ -1315,8 +1382,8 @@
         if (score > best) { best = score; bi = i; bj = j; const l = Math.hypot(nx, ny) || 1; bnx = nx / l; bny = ny / l; }
       }
       lastBite = [bi / G, bj / G];
-      cx = (bi + .5) / G * TEX + bnx * BITE_R * .1;
-      cy = (bj + .5) / G * TEX + bny * BITE_R * .1;
+      cx = (bi + .5) / G * TEX + bnx * BITE_R * .15;
+      cy = (bj + .5) / G * TEX + bny * BITE_R * .15;
       ang = Math.atan2(-bny, -bnx);
       R = drawBite(cx, cy, ang);
     }
@@ -1330,7 +1397,8 @@
     for (const c of portrait) {
       if (c.state !== 'waiting' || !isBitten(c.x, c.y)) continue;
       const k = .45 + Math.random() * .4;
-      launch(c, c.x + (cx - c.x) * k + (Math.random() - .5) * 40, c.y + (cy - c.y) * k + (Math.random() - .5) * 40, now);
+      // the last mouthful sheds a lot of crumbs, so let them fall over a longer stretch
+      launch(c, c.x + (cx - c.x) * k + (Math.random() - .5) * 40, c.y + (cy - c.y) * k + (Math.random() - .5) * 40, now, eaten ? 1600 : 380);
     }
     // Loose crumbs already on the toast fall away once their spot is eaten; a few new ones land nearby
     const keep = loose.filter(c => !isBitten(c.x, c.y));
@@ -1341,7 +1409,7 @@
         const a = ang + (Math.random() - .5) * 2.6, dist = R * (1.05 + Math.random() * .7);
         const x = cx + Math.cos(a) * dist, y = cy + Math.sin(a) * dist;
         if (!onSlice(x, y, .03) || isBitten(x, y)) continue;
-        const c = makeCrumb(x, y, 5 + Math.random() * 9, Math.random() < .6 ? 'pale' : 'gold');
+        const c = randomCrumb(x, y, Math.random() < .6 ? 'pale' : 'gold');
         launch(c, cx + (Math.random() - .5) * R * .6, cy + (Math.random() - .5) * R * .6, now);
         loose.push(c);
       }
