@@ -80,7 +80,7 @@
     tctx.textBaseline = 'middle';
     // Draw off-canvas and keep only the shadow: a cross-browser blur
     tctx.shadowColor = '#fff';
-    tctx.shadowBlur = 11;
+    tctx.shadowBlur = 15;
     tctx.shadowOffsetX = TEX * 2;
     tctx.fillStyle = '#fff';
     const ys = [0.41, 0.66];
@@ -163,25 +163,36 @@
       vec4 m = (texture2D(uMask, uv) * 2. + texture2D(uMask, uv + o) + texture2D(uMask, uv - o)
               + texture2D(uMask, uv + o.yx) + texture2D(uMask, uv - o.yx)) / 6.;
       float paint = m.a;
-      vec2 c2 = m.rg * 2. - 1.;
+      // Knife direction is noisy per texel, so average it (weighted by paint) over a wider area
+      vec2 w = vec2(6. / 1024., 0.);
+      vec4 d0 = texture2D(uMask, uv), d1 = texture2D(uMask, uv + w), d2 = texture2D(uMask, uv - w),
+           d3 = texture2D(uMask, uv + w.yx), d4 = texture2D(uMask, uv - w.yx);
+      vec2 c2 = (d0.rg * 2. - 1.) * d0.a + (d1.rg * 2. - 1.) * d1.a + (d2.rg * 2. - 1.) * d2.a
+              + (d3.rg * 2. - 1.) * d3.a + (d4.rg * 2. - 1.) * d4.a;
       float ang = atan(c2.y, c2.x + 1e-5) * .5;
       vec2 dir = vec2(cos(ang), sin(ang));
 
       float n = vnoise(uv * 38.);
       float cover = smoothstep(.03 + .1 * n, .2 + .1 * n, paint);
-      vec2 wob = (vec2(vnoise(uv * 24.), vnoise(uv * 24. + 9.3)) - .5) * .008;
-      float t = texture2D(uText, uv + wob).a;
-      float letter = smoothstep(.2, .8, t);
+      // Warp the letters so their edges wander like something melting
+      vec2 warp = (vec2(fbm(uv * 7.), fbm(uv * 7. + 13.)) - .5) * .022
+                + (vec2(vnoise(uv * 30.), vnoise(uv * 30. + 9.3)) - .5) * .006;
+      float t = texture2D(uText, uv + warp).a;
+      float letter = smoothstep(.12, .75, t);
+      float halo = smoothstep(.02, .35, t); // Marmite bleeding out into the butter
 
       // Knife streaks run along the direction of the stroke
       vec2 q = vec2(dot(uv, dir), dot(uv, vec2(-dir.y, dir.x)));
       float streak = vnoise(vec2(q.x * 6., q.y * 70.)) * .55 + vnoise(vec2(q.x * 3., q.y * 24.)) * .45;
 
+      // Streaks of butter swirled through the Marmite
+      float marble = smoothstep(.2, .8, vnoise(vec2(q.x * 5., q.y * 26.) + fbm(uv * 12.) * 2.));
+
       thick = letter * cover;
       float film = paint * (.35 + .65 * streak);
-      float thickness = thick * (.85 + .3 * streak) + film * .2;
-      float H = th * .0016 * (1. - thick) + crustRidge * .004
-              + thick * .009 * (.95 + .06 * streak) + film * .00025;
+      float thickness = thick * (.22 + .4 * marble) + halo * cover * .1 + film * .12;
+      float H = th * .0016 * (1. - thick * .55) + crustRidge * .004
+              + thick * .0028 * (.7 + .3 * marble) + film * .0002;
       return vec4(H, thickness, th, d);
     }
 
@@ -217,23 +228,29 @@
       vec3 crustCol = mix(vec3(.38, .19, .07), vec3(.20, .10, .045), fbm(p * 22.));
       alb = mix(crustCol, alb, interior);
 
+      // Melted butter: soaks in patchily, darkening and yellowing the crumb, and pools in the holes
+      float butter = interior * smoothstep(.25, .7, fbm(p * 2.6 + 40.));
+      float pool = butter * smoothstep(.5, .15, th);
+      alb = mix(alb, alb * vec3(1.02, .9, .6), butter * .55);
+
       float diff = max(dot(N, L), 0.);
       vec3 col = alb * (.38 + .75 * diff);
-      col += vec3(1., .9, .75) * pow(max(dot(N, normalize(L + V)), 0.), 30.) * .05 * (1. - interior);
-
-      // Marmite casts a soft shadow onto the toast beside it
-      vec2 so = uv + normalize(L.xy) * .008;
-      float occ = smoothstep(.2, .8, texture2D(uText, so).a) * smoothstep(.03, .2, texture2D(uMask, so).a);
-      col *= 1. - clamp(occ - thick, 0., 1.) * .45;
-
-      // Marmite: Beer-Lambert absorption (amber when thin, near-black when thick) + wet gloss
-      float k = s.y;
-      vec3 marm = col * exp(-vec3(2.2, 4.3, 7.8) * k * 3.2)
-                + vec3(.06, .022, .007) * smoothstep(0., .5, k) * (.6 + .6 * diff);
-      float wet = smoothstep(0., .06, k);
       vec3 Hh = normalize(L + V);
       float ndh = max(dot(N, Hh), 0.);
-      float spec = pow(ndh, 180.) * 2.4 + pow(ndh, 22.) * .16;
+      col += vec3(1., .9, .75) * pow(ndh, 30.) * .05 * (1. - interior);
+      col += vec3(1., .9, .62) * (pow(ndh, 60.) * .9 + pow(ndh, 12.) * .06) * (butter * .35 + pool * .9);
+
+      // Marmite casts a faint shadow onto the toast beside it
+      vec2 so = uv + normalize(L.xy) * .006;
+      float occ = smoothstep(.12, .75, texture2D(uText, so).a) * smoothstep(.03, .2, texture2D(uMask, so).a);
+      col *= 1. - clamp(occ - thick, 0., 1.) * .15;
+
+      // Marmite: Beer-Lambert absorption, a translucent amber-brown the toast shows through, + wet gloss
+      float k = s.y;
+      vec3 marm = col * exp(-vec3(2.2, 4.3, 7.8) * k * 1.4)
+                + vec3(.05, .018, .006) * smoothstep(0., .5, k) * (.6 + .6 * diff);
+      float wet = smoothstep(0., .06, k);
+      float spec = pow(ndh, 180.) * 1.6 + pow(ndh, 22.) * .14;
       vec3 R = reflect(-V, N);
       float box = smoothstep(.26, .16, abs(R.x + .26)) * smoothstep(.3, .18, abs(R.y + .32));
       float box2 = smoothstep(.1, .05, abs(R.x - .42)) * smoothstep(.4, .28, abs(R.y + .05)) * .4;
