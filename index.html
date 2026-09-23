@@ -6,7 +6,7 @@
 <title>Hello</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Fredoka:wght@700&display=swap" rel="stylesheet">
 <style>
   html, body { height: 100%; margin: 0; }
   body {
@@ -84,51 +84,135 @@
 
   const pot = document.getElementById('pot');
 
-  // Butter-knife cursor (128px, the largest browsers allow): steel blade, bolster, riveted wooden
-  // handle; the blade carries more or less Marmite depending on what's left. Tip is the hotspot.
+  // Butter-knife cursor, painted at 1x and 2x (128px is the largest cursor browsers allow): brushed
+  // steel blade, bolster, lacquered wooden scales with brass rivets; the blade carries more or less
+  // Marmite depending on what's left. The tip is the hotspot.
+  function paintKnife(S, level) {
+    const c = document.createElement('canvas');
+    c.width = c.height = S;
+    const x = c.getContext('2d');
+    const k = S / 128;
+    let seed = 7 + level;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    x.setTransform(k, 0, 0, k, 0, 0);
+    x.translate(64, 64);
+    x.rotate(-Math.PI / 4);
+    x.translate(-64, -64);
+
+    const blade = new Path2D('M56 62 L56 -8 C56 -17 60 -21 64 -21 C68.5 -21 72 -17 72 -9 L72 62 Z');
+    const bolster = new Path2D(); bolster.roundRect(54.5, 61, 19, 9, 2);
+    const handle = new Path2D(); handle.roundRect(53.5, 69, 21, 80, 7);
+    const lin = (x0, x1, stops) => { const g = x.createLinearGradient(x0, 0, x1, 0); stops.forEach(([o, col]) => g.addColorStop(o, col)); return g; };
+
+    // Soft shadow cast onto the toast
+    x.save();
+    x.shadowColor = 'rgba(0,0,0,.55)';
+    x.shadowBlur = 6 * k;
+    x.shadowOffsetX = 3 * k;
+    x.shadowOffsetY = 5 * k;
+    x.fillStyle = '#000';
+    x.fill(blade); x.fill(bolster); x.fill(handle);
+    x.restore();
+
+    // Blade: polished steel, brushed along its length, with a bevelled edge
+    x.save();
+    x.clip(blade);
+    x.fillStyle = lin(56, 72, [[0, '#4d545c'], [.14, '#9ba2aa'], [.3, '#f3f5f7'], [.42, '#c4c9cf'], [.6, '#8b929a'], [.78, '#e0e4e8'], [.9, '#a9afb6'], [1, '#596068']]);
+    x.fillRect(50, -25, 30, 90);
+    for (let i = 0; i < 220; i++) {
+      const bx = 56 + rnd() * 16;
+      x.strokeStyle = rnd() < .5 ? `rgba(255,255,255,${rnd() * .12})` : `rgba(20,24,30,${rnd() * .1})`;
+      x.lineWidth = .2 + rnd() * .4;
+      x.beginPath(); x.moveTo(bx, -22); x.lineTo(bx + (rnd() - .5) * .4, 63); x.stroke();
+    }
+    x.fillStyle = lin(68.6, 72, [[0, 'rgba(255,255,255,0)'], [.35, 'rgba(255,255,255,.35)'], [.6, 'rgba(40,45,52,.35)'], [1, 'rgba(255,255,255,.15)']]);
+    x.fillRect(68.6, -25, 4, 90);
+    const win = x.createRadialGradient(61.5, 22, 1, 61.5, 22, 22);
+    win.addColorStop(0, 'rgba(255,255,255,.35)'); win.addColorStop(1, 'rgba(255,255,255,0)');
+    x.save(); x.scale(1, 2.2); x.fillStyle = win; x.fillRect(50, -15, 25, 45); x.restore();
+    const tip = x.createRadialGradient(61, -13, .5, 61, -13, 7);
+    tip.addColorStop(0, 'rgba(255,255,255,.9)'); tip.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = tip; x.fillRect(52, -22, 16, 18);
+    x.restore();
+    x.strokeStyle = 'rgba(45,50,57,.9)';
+    x.lineWidth = .6;
+    x.stroke(blade);
+
+    // Marmite on the blade
+    if (level > 0) {
+      const blob = new Path2D(level === 2
+        ? 'M56.6 -10 C57.5 -19.5 70.5 -20.5 71.5 -10 L71.6 27 C70.5 34 67.5 28.5 65.5 35.5 C63.8 41.5 61.5 32.5 59.5 38 C57.5 34 56.8 30 56.8 25 Z'
+        : 'M58 -8 C60 -16 68 -17 70 -9 C71 0 69 8 70 16 C68 20 66 13 64 18 C62 23 60 14 58 19 Z');
+      x.save();
+      x.globalAlpha = level === 2 ? 1 : .85;
+      const mg = x.createLinearGradient(56, 0, 72, 0);
+      mg.addColorStop(0, '#2c1307'); mg.addColorStop(.45, '#170802'); mg.addColorStop(1, '#0b0401');
+      x.fillStyle = mg;
+      x.fill(blob);
+      x.strokeStyle = 'rgba(140,60,18,.55)'; // thin edges glow amber
+      x.lineWidth = .9;
+      x.stroke(blob);
+      x.clip(blob);
+      x.strokeStyle = 'rgba(255,240,225,.5)';
+      x.lineWidth = 1.4;
+      x.lineCap = 'round';
+      x.beginPath(); x.moveTo(60.3, -11); x.bezierCurveTo(59.8, 2, 60.3, 14, 61.3, level === 2 ? 28 : 12); x.stroke();
+      x.strokeStyle = 'rgba(255,240,225,.18)';
+      x.lineWidth = 2.5;
+      x.beginPath(); x.moveTo(66, -12); x.bezierCurveTo(67, 0, 66, 12, 67, 22); x.stroke();
+      const g = x.createRadialGradient(65, -7, .3, 65, -7, 3.5);
+      g.addColorStop(0, 'rgba(255,255,255,.75)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = g; x.fillRect(60, -12, 10, 10);
+      x.restore();
+    }
+
+    // Bolster
+    x.fillStyle = lin(54.5, 73.5, [[0, '#353a40'], [.28, '#cdd2d7'], [.38, '#ffffff'], [.62, '#858b92'], [1, '#33383e']]);
+    x.fill(bolster);
+    x.strokeStyle = 'rgba(25,28,32,.9)'; x.lineWidth = .6; x.stroke(bolster);
+    x.fillStyle = 'rgba(0,0,0,.35)'; x.fillRect(54.5, 68.2, 19, 1.2);
+
+    // Handle: dark wood scales with grain, lacquer shine and brass rivets
+    x.save();
+    x.clip(handle);
+    x.fillStyle = lin(53.5, 74.5, [[0, '#1a0c05'], [.22, '#553017'], [.45, '#7c4b27'], [.7, '#5b3419'], [1, '#170a04']]);
+    x.fillRect(50, 66, 30, 86);
+    for (let i = 0; i < 46; i++) {
+      const gx = 53.5 + rnd() * 21, amp = .4 + rnd() * 1.2, fq = .05 + rnd() * .12, ph = rnd() * 6;
+      x.strokeStyle = rnd() < .75 ? `rgba(28,13,5,${.15 + rnd() * .3})` : `rgba(170,110,65,${.08 + rnd() * .12})`;
+      x.lineWidth = .3 + rnd() * .9;
+      x.beginPath();
+      for (let y = 69; y <= 150; y += 2) {
+        const px = gx + Math.sin(y * fq + ph) * amp;
+        y === 69 ? x.moveTo(px, y) : x.lineTo(px, y);
+      }
+      x.stroke();
+    }
+    x.fillStyle = lin(53.5, 74.5, [[0, 'rgba(255,230,200,0)'], [.14, 'rgba(255,230,200,.4)'], [.24, 'rgba(255,230,200,0)'], [.8, 'rgba(255,230,200,0)'], [.88, 'rgba(255,230,200,.12)'], [1, 'rgba(255,230,200,0)']]);
+    x.fillRect(50, 66, 30, 86);
+    const cap = x.createLinearGradient(0, 138, 0, 149);
+    cap.addColorStop(0, 'rgba(0,0,0,0)'); cap.addColorStop(1, 'rgba(0,0,0,.45)');
+    x.fillStyle = cap; x.fillRect(50, 138, 30, 12);
+    x.restore();
+    x.strokeStyle = 'rgba(15,7,3,.95)'; x.lineWidth = .7; x.stroke(handle);
+    for (const ry of [88, 128]) {
+      const rg = x.createRadialGradient(63.2, ry - .9, .2, 64, ry, 2.8);
+      rg.addColorStop(0, '#fff6cf'); rg.addColorStop(.35, '#e0b04c'); rg.addColorStop(.8, '#8a5f17'); rg.addColorStop(1, '#4d3309');
+      x.fillStyle = rg;
+      x.beginPath(); x.arc(64, ry, 2.7, 0, Math.PI * 2); x.fill();
+      x.strokeStyle = 'rgba(30,18,4,.8)'; x.lineWidth = .5; x.stroke();
+    }
+    return c.toDataURL('image/png');
+  }
   function knifeCursor(level) {
-    const marmite = level === 0 ? '' : level === 1
-      ? `<path d='M58 -8 C60 -16 68 -17 70 -9 C71 0 69 8 70 16 C68 20 66 13 64 18 C62 23 60 14 58 19 Z' fill='url(#mm)' opacity='.85'/>
-         <path d='M61 -8 C61 0 61 6 62 12' stroke='#fff' stroke-opacity='.35' stroke-width='1.2' fill='none' stroke-linecap='round'/>`
-      : `<path d='M57 -10 C58 -19 70 -20 71 -10 L71.5 28 C70 35 67 29 65 36 C63 42 61 33 59 38 C57.5 34 57 30 57 26 Z' fill='url(#mm)'/>
-         <path d='M60.5 -10 C60 4 60.5 16 61.5 28' stroke='#fff' stroke-opacity='.45' stroke-width='1.6' fill='none' stroke-linecap='round'/>
-         <ellipse cx='66' cy='-6' rx='2' ry='3.5' fill='#fff' opacity='.35'/>`;
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 128 128'>
-      <defs>
-        <linearGradient id='steel' x1='0' x2='1'>
-          <stop offset='0' stop-color='#5f666e'/><stop offset='.28' stop-color='#eef1f4'/>
-          <stop offset='.45' stop-color='#b4bac1'/><stop offset='.7' stop-color='#dfe3e7'/><stop offset='1' stop-color='#6b727a'/>
-        </linearGradient>
-        <linearGradient id='bolster' x1='0' x2='1'>
-          <stop offset='0' stop-color='#4a5057'/><stop offset='.35' stop-color='#d9dde1'/><stop offset='1' stop-color='#50565d'/>
-        </linearGradient>
-        <linearGradient id='wood' x1='0' x2='1'>
-          <stop offset='0' stop-color='#2a160a'/><stop offset='.3' stop-color='#7a4a26'/>
-          <stop offset='.55' stop-color='#5c351a'/><stop offset='1' stop-color='#22120a'/>
-        </linearGradient>
-        <radialGradient id='rivet' cx='.35' cy='.35' r='.7'>
-          <stop offset='0' stop-color='#fff4c8'/><stop offset='.5' stop-color='#c79a3a'/><stop offset='1' stop-color='#6b4a12'/>
-        </radialGradient>
-        <linearGradient id='mm' x1='0' x2='1'>
-          <stop offset='0' stop-color='#2a1206'/><stop offset='.4' stop-color='#1a0903'/><stop offset='1' stop-color='#0c0401'/>
-        </linearGradient>
-        <filter id='sh' x='-30%' y='-30%' width='160%' height='160%'>
-          <feDropShadow dx='3' dy='5' stdDeviation='3' flood-color='#000' flood-opacity='.55'/>
-        </filter>
-      </defs>
-      <g transform='rotate(-45 64 64)' filter='url(#sh)'>
-        <path d='M56 62 L56 -8 C56 -17 60 -21 64 -21 C68.5 -21 72 -17 72 -9 L72 62 Z' fill='url(#steel)' stroke='#4b5158' stroke-width='.8'/>
-        <path d='M57.6 -6 C57.6 -14 60 -18.5 63 -19.4' stroke='#fff' stroke-opacity='.8' stroke-width='1' fill='none' stroke-linecap='round'/>
-        <path d='M70.5 60 L70.5 -8' stroke='#3c4248' stroke-opacity='.5' stroke-width='1'/>
-        ${marmite}
-        <rect x='54.5' y='61' width='19' height='9' rx='2' fill='url(#bolster)' stroke='#3a3f45' stroke-width='.6'/>
-        <rect x='53.5' y='69' width='21' height='80' rx='7' fill='url(#wood)' stroke='#1a0d05' stroke-width='.8'/>
-        <path d='M58 74 C59 95 57 118 59 144 M63 72 C64 100 62 120 64 146 M69 74 C68 98 70 122 68 144' stroke='#1f1007' stroke-opacity='.45' stroke-width='.8' fill='none'/>
-        <path d='M57 73 L57 145' stroke='#c08a5a' stroke-opacity='.35' stroke-width='1.4' stroke-linecap='round'/>
-        <circle cx='64' cy='88' r='2.6' fill='url(#rivet)'/><circle cx='64' cy='128' r='2.6' fill='url(#rivet)'/>
-      </g>
-    </svg>`;
-    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 6 6, crosshair`;
+    const a = paintKnife(128, level), b = paintKnife(256, level);
+    const probe = document.createElement('div').style;
+    for (const v of [`image-set(url("${a}") 1x, url("${b}") 2x) 5 5, crosshair`,
+                     `-webkit-image-set(url("${a}") 1x, url("${b}") 2x) 5 5, crosshair`]) {
+      probe.cursor = v;
+      if (probe.cursor) return v;
+    }
+    return `url("${a}") 5 5, crosshair`;
   }
   const CURSORS = [0, 1, 2].map(knifeCursor);
   let cursorLevel = -1;
@@ -475,6 +559,7 @@
     precision highp float;
     varying vec2 vUv;
     uniform vec2 uRes;
+    uniform sampler2D uLabel;
 
     const vec3 L = vec3(-.5, -.62, .75) / 1.094;
     const vec3 V = vec3(0., 0., 1.);
@@ -510,11 +595,27 @@
 
     vec4 over(vec4 top, vec4 under) { return top + under * (1. - top.a); }
 
-    vec3 shadeGlass(vec2 p, float r) {
+    vec3 bodyNormal(vec2 p, float r, float extra) {
       float xn = clamp(p.x / max(r, 1e-3), -1., 1.), zn = sqrt(max(0., 1. - xn * xn));
       float dR = (radius(p.y + .002) - radius(p.y - .002)) / .004;
+      return normalize(vec3(xn, -dR + extra, zn));
+    }
+
+    // Paper label wrapped around the front of the jar (±70°)
+    const float LAB_T = .6, LAB_B = .98, LAB_ANG = 1.22;
+    vec3 shadeLabel(vec2 p, float r, vec2 uv) {
+      vec3 N = bodyNormal(p, r, 0.);
+      vec3 alb = texture2D(uLabel, uv).rgb * (.94 + .06 * vnoise(p * 900.));
+      float F = fresnel(N, .03);
+      float ao = mix(.55, 1., smoothstep(Y_BOT, Y_BOT - .08, p.y));
+      return alb * (.1 + .95 * max(dot(N, L), 0.)) * ao * (1. - F)
+           + env(reflect(-V, N)) * F * .3 + pow(max(dot(N, normalize(L + V)), 0.), 25.) * .06;
+    }
+
+    vec3 shadeGlass(vec2 p, float r) {
+      float xn = clamp(p.x / max(r, 1e-3), -1., 1.), zn = sqrt(max(0., 1. - xn * xn));
       float thread = (p.y > .308 && p.y < .36) ? sin(p.y * 280.) * .35 : 0.; // screw thread on the neck
-      vec3 N = normalize(vec3(xn, -dR + thread, zn));
+      vec3 N = bodyNormal(p, r, thread);
       float F = fresnel(N, .04);
       float edge = pow(1. - zn, 2.5);
       vec3 inside = vec3(.028, .011, .004);
@@ -535,7 +636,14 @@
       // Body
       float r = radius(p.y);
       float a = clamp((r - abs(p.x)) / px + .5, 0., 1.) * clamp((p.y - Y_TOP) / px + .5, 0., 1.) * clamp((Y_BOT - p.y) / px + .5, 0., 1.);
-      if (a > 0.) acc = vec4(shadeGlass(p, r), 1.) * a;
+      if (a > 0.) {
+        vec3 c = shadeGlass(p, r);
+        float u = asin(clamp(p.x / r, -1., 1.)) / (2. * LAB_ANG) + .5;
+        float la = smoothstep(0., .006, u) * smoothstep(1., .994, u)
+                 * clamp((p.y - LAB_T) / px + .5, 0., 1.) * clamp((LAB_B - p.y) / px + .5, 0., 1.);
+        if (la > 0.) c = mix(c, shadeLabel(p, r, vec2(u, (p.y - LAB_T) / (LAB_B - LAB_T))), la);
+        acc = vec4(c, 1.) * a;
+      }
 
       // Drip of Marmite running down from the rim
       {
@@ -646,7 +754,86 @@
     return p;
   }
 
-  let drawJar = () => {};
+  // Label artwork: a Marmite-style label for JIMBO-MITE (drawn at 1024x410, stored in a 1024x512 texture)
+  const label = document.createElement('canvas');
+  label.width = 1024;
+  label.height = 512;
+  function drawLabel() {
+    const x = label.getContext('2d');
+    const W = 1024, H = 410;
+    x.setTransform(1, 0, 0, 512 / H, 0, 0);
+    const base = x.createLinearGradient(0, 0, 0, H);
+    base.addColorStop(0, '#f8cf2c');
+    base.addColorStop(1, '#eeb70e');
+    x.fillStyle = base;
+    x.fillRect(0, 0, W, H);
+    // Paper grain
+    for (let i = 0; i < 6000; i++) {
+      x.fillStyle = `rgba(${Math.random() < .5 ? '120,70,0' : '255,245,200'},${Math.random() * .07})`;
+      x.fillRect(Math.random() * W, Math.random() * H, 1 + Math.random() * 2, 1 + Math.random() * 2);
+    }
+    // Red bands with green pinstripes
+    x.fillStyle = '#b3121c';
+    x.fillRect(0, 0, W, 32);
+    x.fillRect(0, H - 32, W, 32);
+    x.fillStyle = '#2c6a2d';
+    x.fillRect(0, 38, W, 5);
+    x.fillRect(0, H - 43, W, 5);
+    // Oval badge
+    x.save();
+    x.beginPath();
+    x.ellipse(W / 2, 185, 330, 118, 0, 0, Math.PI * 2);
+    const badge = x.createRadialGradient(W / 2, 170, 20, W / 2, 185, 330);
+    badge.addColorStop(0, '#ffe36a');
+    badge.addColorStop(1, '#f5c318');
+    x.fillStyle = badge;
+    x.fill();
+    x.lineWidth = 8;
+    x.strokeStyle = '#b3121c';
+    x.stroke();
+    x.beginPath();
+    x.ellipse(W / 2, 185, 316, 105, 0, 0, Math.PI * 2);
+    x.lineWidth = 2.5;
+    x.strokeStyle = '#2c6a2d';
+    x.stroke();
+    x.restore();
+    // Wordmark
+    const word = 'JIMBO-MITE';
+    let size = 120;
+    x.font = `${size}px "Abril Fatface", "Bodoni 72", Didot, Georgia, serif`;
+    size *= 540 / x.measureText(word).width;
+    x.font = `${size}px "Abril Fatface", "Bodoni 72", Didot, Georgia, serif`;
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    x.lineJoin = 'round';
+    x.lineWidth = size * .09;
+    x.strokeStyle = '#3a1004';
+    x.strokeText(word, W / 2, 190);
+    const red = x.createLinearGradient(0, 190 - size / 2, 0, 190 + size / 2);
+    red.addColorStop(0, '#e3263d');
+    red.addColorStop(1, '#a30c20');
+    x.fillStyle = red;
+    x.fillText(word, W / 2, 190);
+    x.fillStyle = 'rgba(255, 225, 190, .35)';
+    x.save();
+    x.beginPath();
+    x.rect(0, 0, W, 190 - size * .12);
+    x.clip();
+    x.fillText(word, W / 2 - 1.5, 188);
+    x.restore();
+    // Small print
+    x.fillStyle = '#3b1a08';
+    x.font = '600 30px Georgia, serif';
+    if ('letterSpacing' in x) x.letterSpacing = '8px';
+    x.fillText('YEAST EXTRACT', W / 2, 330);
+    if ('letterSpacing' in x) x.letterSpacing = '0px';
+    x.font = '600 24px Georgia, serif';
+    x.textAlign = 'right';
+    x.fillText('250g', W - 70, 330);
+    x.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  let drawJar = () => {}, uploadLabel = () => {};
   if (jgl) {
     const jp = makeProgram(jgl, vs, jarFs);
     jgl.useProgram(jp);
@@ -656,10 +843,27 @@
     jgl.enableVertexAttribArray(ja);
     jgl.vertexAttribPointer(ja, 2, jgl.FLOAT, false, 0, 0);
     const jRes = jgl.getUniformLocation(jp, 'uRes');
+    const labelTex = jgl.createTexture();
+    jgl.uniform1i(jgl.getUniformLocation(jp, 'uLabel'), 0);
+    let jarDirty = true;
+    uploadLabel = () => {
+      drawLabel();
+      jgl.activeTexture(jgl.TEXTURE0);
+      jgl.bindTexture(jgl.TEXTURE_2D, labelTex);
+      jgl.texImage2D(jgl.TEXTURE_2D, 0, jgl.RGBA, jgl.RGBA, jgl.UNSIGNED_BYTE, label);
+      jgl.generateMipmap(jgl.TEXTURE_2D);
+      jgl.texParameteri(jgl.TEXTURE_2D, jgl.TEXTURE_MIN_FILTER, jgl.LINEAR_MIPMAP_LINEAR);
+      jgl.texParameteri(jgl.TEXTURE_2D, jgl.TEXTURE_MAG_FILTER, jgl.LINEAR);
+      jgl.texParameteri(jgl.TEXTURE_2D, jgl.TEXTURE_WRAP_S, jgl.CLAMP_TO_EDGE);
+      jgl.texParameteri(jgl.TEXTURE_2D, jgl.TEXTURE_WRAP_T, jgl.CLAMP_TO_EDGE);
+      jarDirty = true;
+    };
+    uploadLabel();
     drawJar = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const w = Math.round(jarCanvas.clientWidth * dpr), h = Math.round(w * 1.25);
-      if (!w || (jarCanvas.width === w && jarCanvas.height === h)) return;
+      if (!w || (!jarDirty && jarCanvas.width === w && jarCanvas.height === h)) return;
+      jarDirty = false;
       jarCanvas.width = w;
       jarCanvas.height = h;
       jgl.viewport(0, 0, w, h);
@@ -802,6 +1006,7 @@
   drawText();
   if (document.fonts && document.fonts.load) {
     document.fonts.load('700 100px "Fredoka"').then(() => { drawText(); textDirty = dirty = true; });
+    document.fonts.load('100px "Abril Fatface"').then(() => uploadLabel());
   }
   requestAnimationFrame(frame);
 })();
