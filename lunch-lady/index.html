@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LunchLady.io</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Courier+Prime:wght@400;700&display=swap">
+<style>
+  :root {
+    --ink: #111;
+    --paper: #fff;
+    --grey: #6b6b6b;
+    --rule: #111;
+    --sign: "Alfa Slab One", "Rockwell", Georgia, serif;
+    --type: "Courier Prime", "Courier New", monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font: 16px/1.5 var(--type); padding: 0 16px 48px; }
+  main { max-width: 640px; margin: 0 auto; }
+
+  header { text-align: center; padding: 32px 0 20px; border-bottom: 4px double var(--rule); margin-bottom: 24px; }
+  h1 { font: 400 clamp(40px, 10vw, 64px)/1 var(--sign); margin: 0; letter-spacing: 0.01em; }
+  h1 small { font-size: 0.4em; }
+  header p { margin: 8px 0 0; letter-spacing: 0.2em; text-transform: uppercase; font-size: 13px; font-weight: 700; }
+
+  .hatch { position: relative; aspect-ratio: 4 / 3; overflow: hidden; background: #000; border: 3px solid var(--ink); }
+  .hatch video, .hatch canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  .hatch video { filter: grayscale(1) contrast(1.1); }
+  .hatch .idle { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: #fff; }
+  .scanline { position: absolute; left: 0; right: 0; height: 3px; background: #fff; box-shadow: 0 0 14px #fff; top: 0; animation: scan 1.2s linear infinite; }
+  @keyframes scan { from { top: 0; } to { top: 100%; } }
+  .countdown { position: absolute; top: 10px; right: 14px; font: 400 44px/1 var(--sign); color: #fff; text-shadow: 0 0 8px #000; }
+
+  .readout { font-size: 13px; color: var(--grey); margin: 8px 0 0; min-height: 1.5em; }
+
+  button {
+    font: 400 18px var(--sign); letter-spacing: 0.02em; color: var(--paper); background: var(--ink);
+    border: 3px solid var(--ink); padding: 12px 22px; cursor: pointer; width: 100%; margin-top: 14px;
+  }
+  button:hover:not(:disabled) { background: #333; border-color: #333; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.ghost { background: var(--paper); color: var(--ink); }
+  button.ghost:hover:not(:disabled) { background: #eee; border-color: var(--ink); }
+  button.link { all: unset; cursor: pointer; text-decoration: underline; font-weight: 700; }
+
+  .loc { margin: 18px 0 0; font-size: 14px; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+  .loc .status { flex: 1; min-width: 200px; }
+  .loc form { display: flex; gap: 8px; width: 100%; }
+  .loc input { flex: 1; min-width: 0; font: 700 15px var(--type); border: 2px solid var(--ink); padding: 8px 10px; background: var(--paper); color: var(--ink); }
+  .loc form button { width: auto; margin: 0; padding: 6px 14px; font-size: 15px; }
+
+  .result { border: 3px solid var(--ink); padding: 20px; margin-top: 28px; }
+  .result .placeholder { margin: 0; color: var(--grey); }
+  .label { font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--grey); margin: 0; }
+  .archetype { font: 700 20px var(--type); margin: 2px 0 16px; }
+  .dish { font: 400 clamp(32px, 7vw, 46px)/1.05 var(--sign); margin: 4px 0 10px; }
+  .where { margin: 0 0 14px; }
+  .where a { color: var(--ink); font-weight: 700; }
+  .reason { margin: 0 0 14px; padding-left: 12px; border-left: 3px solid var(--ink); font-style: italic; }
+  .evidence { list-style: none; padding: 0; margin: 0; font-size: 13px; color: var(--grey); }
+  .evidence li { display: inline; }
+  .evidence li + li::before { content: " · "; }
+
+  .others { margin-top: 28px; }
+  .others h2 { font: 400 20px var(--sign); margin: 0 0 6px; }
+  .others ol { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--ink); }
+  .others li { border-bottom: 1px solid #ccc; }
+  .others li button {
+    all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: flex; justify-content: space-between; gap: 12px; padding: 10px 4px;
+  }
+  .others li button:hover, .others li button:focus-visible { background: #f1f1f1; }
+  .others .d em { font-style: normal; color: var(--grey); }
+  .others .m { white-space: nowrap; color: var(--grey); }
+
+  footer { margin-top: 32px; padding-top: 14px; border-top: 4px double var(--rule); font-size: 12px; color: var(--grey); display: grid; gap: 8px; }
+  footer a { color: var(--grey); }
+  footer label { color: var(--ink); cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>LUNCH LADY<small>.io</small></h1>
+    <p>What’s for dinner, love?</p>
+  </header>
+
+  <div class="hatch">
+    <video id="video" playsinline muted></video>
+    <canvas id="overlay"></canvas>
+    <div class="idle" id="idle">Press the button, look at the camera and have a natter for five seconds.</div>
+    <div class="scanline" id="scanline" hidden></div>
+    <div class="countdown" id="countdown" hidden></div>
+  </div>
+  <p class="readout" id="readout"></p>
+
+  <button id="judgeBtn">What’s for dinner?</button>
+
+  <div class="loc">
+    <span class="status" id="locStatus">Finding where you are…</span>
+    <button class="link" id="changeLoc" type="button">Change</button>
+    <form id="locForm" hidden>
+      <input id="place" placeholder="Town or postcode">
+      <button type="submit">Set</button>
+    </form>
+  </div>
+
+  <section class="result">
+    <p class="placeholder" id="placeholder">Your dinner will appear here.</p>
+    <div id="result" hidden>
+      <p class="label">You’re</p>
+      <p class="archetype" id="archetype"></p>
+      <p class="label">You’re having</p>
+      <p class="dish" id="dish"></p>
+      <p class="where" id="where"></p>
+      <p class="reason" id="reason"></p>
+      <ul class="evidence" id="evidence"></ul>
+      <button id="rerollBtn" class="ghost">Something else</button>
+    </div>
+  </section>
+
+  <section class="others" id="others" hidden>
+    <h2>Or try one of these</h2>
+    <ol id="specials"></ol>
+  </section>
+
+  <footer>
+    <label><input type="checkbox" id="speak" checked> Read it out loud</label>
+    <span>Video and sound stay in your browser. It only looks at lighting, colour, movement and how loud you are, never your face or body. Restaurant data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>.</span>
+  </footer>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const video = $("video"), overlay = $("overlay"), octx = overlay.getContext("2d");
+const work = document.createElement("canvas"); work.width = 96; work.height = 72;
+const wctx = work.getContext("2d", { willReadFrequently: true });
+
+let stream, analyser, audioBuf, prevLuma = null;
+let live = { light: 0, sat: 0, warmth: 0, colourName: "–", rgb: [0, 0, 0], motion: 0, voiceDb: -100 };
+let scanning = null;
+let coords = null, restaurants = null, lookup = null;
+let current = null; // { arch, traits, pool, pick }
+
+/* ---------- Sensing ---------- */
+
+async function start() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: "user" }, audio: true });
+  } catch (err) {
+    $("idle").textContent = "I can’t see or hear you, love. Let the browser use your camera and microphone. (" + err.name + ")";
+    return false;
+  }
+  video.srcObject = stream;
+  await video.play();
+  $("idle").hidden = true;
+
+  const ac = new AudioContext();
+  const src = ac.createMediaStreamSource(stream);
+  analyser = ac.createAnalyser();
+  analyser.fftSize = 2048;
+  src.connect(analyser);
+  audioBuf = new Float32Array(analyser.fftSize);
+
+  requestAnimationFrame(tick);
+  return true;
+}
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min, s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, s, l];
+}
+
+function colourName(h, s, l) {
+  if (l < 0.16) return "black";
+  if (l > 0.85 && s < 0.35) return "white";
+  if (s < 0.18) return l < 0.45 ? "charcoal" : "grey";
+  if (h < 15 || h >= 345) return l < 0.35 ? "maroon" : "red";
+  if (h < 40) return l < 0.4 ? "brown" : "orange";
+  if (h < 65) return l < 0.4 ? "olive" : "yellow";
+  if (h < 160) return "green";
+  if (h < 195) return "teal";
+  if (h < 250) return l < 0.3 ? "navy" : "blue";
+  if (h < 290) return "purple";
+  return "pink";
+}
+
+// Reads the whole camera frame: overall light, motion, and the dominant colour on screen.
+function readVideo() {
+  if (video.readyState < 2) return;
+  wctx.drawImage(video, 0, 0, work.width, work.height);
+  const { data } = wctx.getImageData(0, 0, work.width, work.height);
+  const px = work.width * work.height;
+  const luma = new Float32Array(px);
+  const bins = Array.from({ length: 12 }, () => ({ w: 0, r: 0, g: 0, b: 0 }));
+  const neutral = { w: 0, r: 0, g: 0, b: 0 };
+  let lumSum = 0, motion = 0, satSum = 0, warmSum = 0;
+  for (let p = 0; p < px; p++) {
+    const i = p * 4, r = data[i], g = data[i + 1], b = data[i + 2];
+    const L = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    luma[p] = L; lumSum += L;
+    if (prevLuma) motion += Math.abs(L - prevLuma[p]);
+    const [h, s, l] = rgbToHsl(r, g, b);
+    satSum += s; warmSum += (r - b) / 255;
+    const chroma = s * (1 - Math.abs(2 * l - 1)); // how colourful it actually looks
+    const bin = chroma > 0.12 ? bins[Math.floor(h / 30) % 12] : neutral;
+    const w = chroma > 0.12 ? chroma : 0.35;
+    bin.w += w; bin.r += r * w; bin.g += g * w; bin.b += b * w;
+  }
+  prevLuma = luma;
+  const top = bins.reduce((a, x) => (x.w > a.w ? x : a), neutral);
+  const rgb = [top.r / top.w, top.g / top.w, top.b / top.w];
+  const [h, s, l] = rgbToHsl(...rgb);
+  const k = 0.25; // smoothing
+  live.light += (lumSum / px - live.light) * k;
+  live.motion += (Math.min(1, (motion / px) * 14) - live.motion) * k;
+  live.sat += (satSum / px - live.sat) * k;
+  live.warmth += (warmSum / px - live.warmth) * k;
+  live.rgb = rgb;
+  live.colourName = colourName(h, s, l);
+}
+
+function readAudio() {
+  if (!analyser) return;
+  analyser.getFloatTimeDomainData(audioBuf);
+  let sum = 0;
+  for (let i = 0; i < audioBuf.length; i++) sum += audioBuf[i] * audioBuf[i];
+  const db = 20 * Math.log10(Math.sqrt(sum / audioBuf.length) + 1e-8);
+  live.voiceDb += (db - live.voiceDb) * 0.3;
+}
+
+function drawOverlay() {
+  const w = overlay.clientWidth, h = overlay.clientHeight;
+  if (overlay.width !== w) { overlay.width = w; overlay.height = h; }
+  octx.clearRect(0, 0, w, h);
+  octx.strokeStyle = scanning ? "#fff" : "rgba(255,255,255,0.5)";
+  octx.lineWidth = 4;
+  const m = 14, L = Math.min(w, h) * 0.12;
+  for (const [x, y, dx, dy] of [[m, m, 1, 1], [w - m, m, -1, 1], [m, h - m, 1, -1], [w - m, h - m, -1, -1]]) {
+    octx.beginPath(); octx.moveTo(x + dx * L, y); octx.lineTo(x, y); octx.lineTo(x, y + dy * L); octx.stroke();
+  }
+}
+
+const voiceFrac = (db) => (db + 60) / 50;
+
+function tick() {
+  readVideo(); readAudio(); drawOverlay();
+  $("readout").textContent = `Light ${Math.round(live.light * 100)}% · Mostly ${live.colourName} · Movement ${Math.round(live.motion * 100)}% · ${live.voiceDb < -48 ? "Quiet" : live.voiceDb < -30 ? "Talking" : "Loud"}`;
+
+  if (scanning) {
+    scanning.samples.push({ ...live });
+    const left = Math.ceil((scanning.end - performance.now()) / 1000);
+    $("countdown").textContent = Math.max(left, 0);
+    if (performance.now() >= scanning.end) finishScan();
+  }
+  requestAnimationFrame(tick);
+}
+
+/* ---------- Location + restaurants ---------- */
+
+function locStatus(msg) { $("locStatus").textContent = msg; }
+
+function requestLocation() {
+  if (!navigator.geolocation) return locStatus("Your browser can’t share your location. Pick a place instead.");
+  navigator.geolocation.getCurrentPosition(
+    (pos) => setCoords(pos.coords.latitude, pos.coords.longitude, "you"),
+    () => locStatus("Location is off. Pick a place instead."),
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 300000 }
+  );
+}
+
+async function geocode() {
+  const q = $("place").value.trim();
+  if (!q) return;
+  locStatus("Looking for “" + q + "”…");
+  try {
+    const res = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(q), { headers: { "Accept-Language": "en" } });
+    const [hit] = await res.json();
+    if (!hit) return locStatus("Never heard of it, love. Try another.");
+    setCoords(+hit.lat, +hit.lon, hit.display_name.split(",").slice(0, 2).join(","));
+  } catch { locStatus("Couldn’t search just now. Try again in a bit."); }
+}
+
+const OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
+
+function setCoords(lat, lon, label) {
+  lookup = findRestaurants(lat, lon, label);
+  return lookup;
+}
+
+async function findRestaurants(lat, lon, label) {
+  coords = { lat, lon };
+  restaurants = null;
+  locStatus("Finding places to eat near " + label + "…");
+  const q = `[out:json][timeout:25];nwr["amenity"~"^(restaurant|fast_food|cafe|pub|food_court)$"]["name"](around:1800,${lat},${lon});out center 600;`;
+  for (const url of OVERPASS) {
+    try {
+      const res = await fetch(url, { method: "POST", body: "data=" + encodeURIComponent(q), signal: AbortSignal.timeout(20000) });
+      if (!res.ok) continue;
+      const json = await res.json();
+      restaurants = json.elements.map((e) => {
+        const la = e.lat ?? e.center?.lat, lo = e.lon ?? e.center?.lon;
+        const tagged = (e.tags.cuisine || "").toLowerCase().split(/[;,]/).map((c) => c.trim().replace(/\s+/g, "_")).filter(Boolean);
+        return {
+          name: e.tags.name,
+          amenity: e.tags.amenity,
+          cuisines: tagged.length ? tagged : guessCuisine(e.tags.name, e.tags.amenity),
+          lat: la, lon: lo,
+          dist: distance(lat, lon, la, lo),
+        };
+      }).filter((r) => r.lat != null).sort((a, b) => a.dist - b.dist);
+      const n = restaurants.length;
+      locStatus(n ? `${n} places to eat near ${label}.` : "There’s nowt round here. Bring a packed lunch.");
+      return;
+    } catch { /* try next mirror */ }
+  }
+  locStatus("Couldn’t reach the map. You’ll get a dish but no restaurant.");
+}
+
+// Lots of places aren't tagged with a cuisine, so have a guess from the name.
+const NAME_HINTS = [
+  [/pizza|pizzeria/i, "pizza"], [/kebab|doner|shish/i, "kebab"], [/chip|fish|frier|fryer/i, "fish_and_chips"],
+  [/curry|tandoor|masala|balti|spice|india|bengal|punjab|mahal/i, "indian"], [/thai|siam|bangkok/i, "thai"],
+  [/sushi/i, "sushi"], [/ramen/i, "ramen"], [/noodle|wok|dragon|panda|china|chinese|canton/i, "chinese"],
+  [/pho|saigon|viet/i, "vietnamese"], [/burger/i, "burger"], [/chicken|wings|peri/i, "chicken"],
+  [/taco|burrito|mex|cantina/i, "mexican"], [/greek|souvlaki|gyro/i, "greek"], [/turk|anatolia|istanbul/i, "turkish"],
+  [/leban|beirut|falafel|shawarma/i, "lebanese"], [/tapas|spain|spanish/i, "spanish"], [/trattoria|osteria|pasta|italia|ristorante/i, "italian"],
+  [/bistro|brasserie/i, "french"], [/korea|seoul/i, "korean"], [/jerk|caribbean|jamaica/i, "caribbean"],
+  [/sandwich|deli|butty/i, "sandwich"], [/bakery|bakehouse|greggs/i, "bakery"], [/gelato|ice ?cream/i, "ice_cream"], [/vegan/i, "vegan"], [/cafe|café|coffee|tea ?room/i, "cafe"],
+];
+function guessCuisine(name, amenity) {
+  for (const [re, c] of NAME_HINTS) if (re.test(name)) return [c];
+  return amenity === "cafe" ? ["cafe"] : amenity === "pub" ? ["pub"] : [];
+}
+
+function distance(a, b, c, d) {
+  const R = 6371000, toR = Math.PI / 180;
+  const x = Math.sin((c - a) * toR / 2) ** 2 + Math.cos(a * toR) * Math.cos(c * toR) * Math.sin((d - b) * toR / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+
+/* ---------- The judgement ---------- */
+
+const DISHES = {
+  thai: ["Pad kra pao with a fried egg on top", "Jungle curry, proper hot", "Pad see ew", "Green curry"],
+  indian: ["Lamb vindaloo", "Chicken tikka thali", "Paneer makhani", "Chicken balti with a garlic naan"],
+  mexican: ["Carnitas tacos", "A burrito the size of your forearm", "Birria tacos with the dipping broth", "Loaded nachos"],
+  korean: ["Bibimbap in a hot stone bowl", "Kimchi jjigae", "Korean fried chicken", "Tteokbokki"],
+  chinese: ["Salt and pepper chips", "Mapo tofu", "Char siu on rice", "Chicken chow mein with curry sauce"],
+  sichuan: ["Mapo tofu", "Dan dan noodles", "Chongqing chicken"],
+  asian: ["Katsu curry", "Crispy chilli beef", "Pad thai"],
+  japanese: ["Chicken katsu curry", "Salmon sashimi don", "Tonkotsu ramen"],
+  sushi: ["A posh sushi platter", "Salmon and avocado maki", "Chirashi bowl"],
+  ramen: ["Tonkotsu ramen", "Spicy miso ramen", "Shoyu ramen with an extra egg"],
+  vietnamese: ["Pho bo", "Banh mi", "Bun cha"],
+  italian: ["Cacio e pepe", "Lasagne", "Spaghetti carbonara", "Risotto ai funghi"],
+  pizza: ["Margherita", "Nduja and honey pizza", "Four cheese pizza", "A pepperoni slice, folded"],
+  french: ["Croque madame", "Steak frites", "Moules marinière"],
+  mediterranean: ["Mezze platter", "Grilled halloumi wrap", "Falafel bowl"],
+  greek: ["Chicken souvlaki pitta", "Moussaka", "Gyros with chips in it"],
+  turkish: ["Adana kebab", "Lahmacun", "Iskender kebab"],
+  lebanese: ["Shawarma plate", "Falafel wrap", "Manakish with za’atar"],
+  middle_eastern: ["Shawarma plate", "Falafel wrap", "Hummus with lamb"],
+  kebab: ["Doner wrap with chilli sauce", "Mixed grill", "Chicken shish on chips"],
+  burger: ["Double smash burger", "Bacon cheeseburger", "Fried chicken burger"],
+  american: ["Double smash burger", "Buffalo wings", "Mac and cheese"],
+  chicken: ["Spicy wings", "Peri-peri half chicken", "Chicken strips and chips"],
+  sandwich: ["A towering club sandwich", "Hot sausage breadcake", "Meatball sub"],
+  bakery: ["Steak bake and a vanilla slice", "Sausage roll, still hot", "Cheese and onion pasty"],
+  british: ["Fish and chips", "Pie, mash and gravy", "A roast dinner, whatever the day"],
+  fish_and_chips: ["Fish, chips and mushy peas", "Fishcake and chips with a splash of Hendo’s", "Chip butty with scraps"],
+  regional: ["Whatever’s on the specials board"],
+  spanish: ["Patatas bravas and croquetas", "Seafood paella", "Tortilla española"],
+  caribbean: ["Jerk chicken with rice and peas", "Curry goat", "Beef patty"],
+  steak_house: ["Ribeye, medium rare", "Steak sandwich"],
+  seafood: ["Grilled fish of the day", "Crab linguine", "Fish tacos"],
+  vegetarian: ["Roast veg grain bowl", "Halloumi burger", "Mushroom stroganoff"],
+  vegan: ["Jackfruit tacos", "Buddha bowl", "Tofu banh mi"],
+  salad: ["A virtuous grain bowl", "Chicken Caesar", "Poke-style salad"],
+  poke: ["Salmon poke bowl", "Tuna poke with extra edamame"],
+  ice_cream: ["Three scoops in a waffle cone, never mind the weather", "A knickerbocker glory for your dinner"],
+  bubble_tea: ["Brown sugar bubble tea and nowt else"],
+  donut: ["Two jam doughnuts. That’s your dinner. Don’t tell your mam"],
+  cake: ["A big slab of Victoria sponge and a brew"],
+  dessert: ["Pudding first, dinner never"],
+  cafe: ["Full English and a mug of builder’s", "Bacon breadcake with brown sauce", "Egg and chips", "Beans on toast with cheese", "Sausage breadcake and a brew"],
+  coffee_shop: ["Cheese toastie and a flat white", "Soup of the day with a bread roll"],
+  breakfast: ["Full English", "Bacon and egg breadcake", "Stack of pancakes"],
+  pub: ["Fish and chips", "Pie of the day", "Ploughman’s", "Yorkshire pud wrap"],
+  // Fallbacks by amenity when we know nowt about the place
+  restaurant: ["Whatever the chef’s proudest of", "T’ special, don’t ask questions"],
+  fast_food: ["Chips and gravy", "Whatever’s quickest off the counter"],
+  food_court: ["Wander round and pick summat beige"],
+};
+
+// Each type scores itself from the traits and has a soft spot for some cuisines.
+const ARCHETYPES = [
+  { name: "a proper livewire", score: (t) => t.motion * 1.6 + t.loud * 1.2,
+    likes: ["thai", "sichuan", "korean", "indian", "mexican", "chicken", "kebab", "caribbean"],
+    line: (t) => `Sit still, love! You’ve not stopped fidgeting${t.loud > 0.55 ? " or talking" : ""}. You need something with a bit of kick.` },
+  { name: "a bit nesh", score: (t) => (1 - t.light) * 1.1 + (1 - t.loud) * 0.8 + Math.max(0, t.warmth) * 1.4,
+    likes: ["ramen", "british", "pub", "italian", "pizza", "indian", "fish_and_chips", "cafe", "vietnamese"],
+    line: () => `Sat in the gloom all quiet. You want something warm inside you, love.` },
+  { name: "dressed to the nines", score: (t) => t.sat * 2 + t.light * 0.8,
+    likes: ["sushi", "japanese", "french", "spanish", "mediterranean", "poke", "greek", "italian"],
+    line: (t) => `Ooh, look at all that ${t.colour}. Too posh for a chip butty, you. Something fancy, then.` },
+  { name: "plain as a breadcake", score: (t) => (1 - t.sat) * 1.5 + (1 - t.motion) * 0.5,
+    likes: ["cafe", "bakery", "sandwich", "japanese", "vietnamese", "coffee_shop", "british", "salad"],
+    line: (t) => `All ${t.colour}, no fuss, not a peep. Nowt wrong with that. Something simple, done properly.` },
+  { name: "a ray of sunshine", score: (t) => t.light * 1.2 + Math.max(0, t.warmth) * 1.6 + t.loud * 0.4,
+    likes: ["mexican", "greek", "caribbean", "spanish", "burger", "lebanese", "pizza", "mediterranean"],
+    line: (t) => `All bright and ${t.colour}. Something sunny for you then, duck.` },
+  { name: "keeping a low profile", score: (t) => (1 - t.light) * 1.3 + (1 - t.motion) * 0.9 + (1 - t.loud) * 0.6 - t.sat,
+    likes: ["kebab", "burger", "fish_and_chips", "chicken", "chinese", "sandwich", "pizza", "fast_food"],
+    line: () => `Sat in the dark, barely moving. You want something you can eat on the go without anyone noticing.` },
+  { name: "all mouth", score: (t) => t.loud * 1.6 + (1 - t.motion) * 0.9,
+    likes: ["turkish", "lebanese", "steak_house", "pub", "middle_eastern", "italian", "american", "indian"],
+    line: () => `Still as a statue and never stopped talking once. Big talker, big plate, love.` },
+];
+
+// Remember recent picks for a bit so she doesn't send you to the same place every day.
+const HISTORY_KEY = "lunchlady:recent";
+function recent() { try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch { return []; } }
+function remember(name) {
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify([name, ...recent().filter((n) => n !== name)].slice(0, 12))); } catch {}
+}
+
+async function judge() {
+  $("judgeBtn").disabled = true;
+  if (!stream && !(await start())) { $("judgeBtn").disabled = false; return; }
+  scanning = { end: performance.now() + 5000, samples: [] };
+  $("judgeBtn").disabled = true;
+  $("scanline").hidden = false; $("countdown").hidden = false;
+  speak("Right then, let’s have a look at you. Tell me about your morning.");
+}
+
+async function finishScan() {
+  const s = scanning.samples; scanning = null;
+  $("scanline").hidden = true; $("countdown").hidden = true;
+  if (lookup && !restaurants) {
+    $("placeholder").hidden = false; $("result").hidden = true;
+    $("placeholder").textContent = "Checking what’s nearby…";
+    await lookup;
+  }
+  $("judgeBtn").disabled = false;
+  $("judgeBtn").textContent = "Try again";
+
+  const avg = (f) => s.reduce((a, x) => a + f(x), 0) / s.length;
+  const talking = s.filter((x) => x.voiceDb > -45).length / s.length;
+  const last = s[s.length - 1];
+  const t = {
+    light: avg((x) => x.light),
+    sat: Math.min(1, avg((x) => x.sat) * 1.6),
+    warmth: avg((x) => x.warmth),
+    motion: avg((x) => x.motion),
+    loud: Math.max(0, Math.min(1, voiceFrac(avg((x) => x.voiceDb)) * 0.6 + talking * 0.4)),
+    peakDb: Math.max(...s.map((x) => x.voiceDb)),
+    talking, colour: last.colourName, rgb: last.rgb,
+  };
+  // A pinch of chance so the same person doesn't always land the same type.
+  const ranked = ARCHETYPES.map((a) => ({ a, v: a.score(t) + Math.random() * 0.45 })).sort((x, y) => y.v - x.v);
+  const arch = ranked[0].a, runnerUp = ranked[1].a;
+  const pool = buildPool(arch, runnerUp);
+  current = { arch, t, pool, pick: pool.length ? drawOne(pool) : null };
+  render(true);
+}
+
+function dishFor(r, likes) {
+  // Sweet shops and veggie places trump everything else, so no pork at a vegan place.
+  const first = r.cuisines.filter((c) => ["vegan", "vegetarian", "ice_cream", "bubble_tea", "donut", "cake", "dessert"].includes(c));
+  const order = [...first, ...r.cuisines.filter((c) => likes.includes(c)), ...r.cuisines, r.amenity];
+  for (const c of order) if (DISHES[c]) return DISHES[c][Math.floor(Math.random() * DISHES[c].length)];
+  return "The house special";
+}
+
+// Every place nearby gets a weight: better fit and closer = likelier, but anything can come up.
+function buildPool(arch, runnerUp) {
+  if (!restaurants?.length) return [];
+  const seen = recent();
+  return restaurants.map((r) => {
+    let fit = 0.25;
+    for (const c of r.cuisines) {
+      const a = arch.likes.indexOf(c), b = runnerUp.likes.indexOf(c);
+      if (a >= 0) fit = Math.max(fit, 1 - (a / arch.likes.length) * 0.5);
+      else if (b >= 0) fit = Math.max(fit, 0.6 - (b / runnerUp.likes.length) * 0.2);
+      else if (DISHES[c]) fit = Math.max(fit, 0.35);
+    }
+    const near = Math.exp(-r.dist / 900);
+    const stale = seen.includes(r.name) ? 0.15 : 1;
+    return { r, weight: fit * fit * (0.35 + near) * stale, dish: dishFor(r, arch.likes) };
+  }).filter((x) => x.weight > 0);
+}
+
+function drawOne(pool, exclude = new Set()) {
+  const options = pool.filter((x) => !exclude.has(x));
+  const total = options.reduce((a, x) => a + x.weight, 0);
+  let roll = Math.random() * total;
+  for (const x of options) if ((roll -= x.weight) <= 0) return x;
+  return options[options.length - 1] || null;
+}
+
+function reroll() {
+  if (!current) return;
+  if (current.pick) {
+    current.skipped = current.skipped || new Set();
+    current.skipped.add(current.pick);
+    current.pick = drawOne(current.pool, current.skipped) || drawOne(current.pool);
+    current.pick.dish = dishFor(current.pick.r, current.arch.likes);
+  }
+  render(false, "Fussy! How about this instead:");
+}
+
+function choose(entry) {
+  current.pick = entry;
+  render(false, "Good choice, love.");
+}
+
+function render(fresh, sayFirst) {
+  const { arch, t, pick, pool } = current;
+  let dish, where;
+  if (pick) {
+    const r = pick.r;
+    dish = pick.dish;
+    remember(r.name);
+    const maps = `https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lon}&travelmode=walking`;
+    const mins = Math.max(1, Math.round(r.dist / 80));
+    where = `At <a href="${maps}" target="_blank" rel="noopener">${esc(r.name)}</a> · ${Math.round(r.dist)} m · about ${mins} min walk`;
+  } else {
+    const list = DISHES[arch.likes[Math.floor(Math.random() * 3)]];
+    dish = list[Math.floor(Math.random() * list.length)];
+    where = coords ? "Nothing on the map nearby, so you’ll have to hunt it down." : "Set a location to get a restaurant.";
+  }
+
+  $("placeholder").hidden = true; $("result").hidden = false;
+  $("archetype").textContent = arch.name;
+  $("dish").textContent = dish;
+  $("where").innerHTML = where;
+  $("reason").textContent = arch.line(t);
+  $("evidence").innerHTML = [
+    `Mostly ${t.colour}`,
+    `Light ${Math.round(t.light * 100)}%`,
+    `Movement ${Math.round(t.motion * 100)}%`,
+    `Talking ${Math.round(t.talking * 100)}% of the time`,
+  ].map((x) => `<li>${x}</li>`).join("");
+  $("rerollBtn").hidden = !pick || pool.length < 2;
+
+  renderSpecials();
+
+  const venue = pick ? ` at ${pick.r.name}` : "";
+  speak(fresh
+    ? `Ey up. You’re ${arch.name}. ${arch.line(t)} You’re having ${dish}${venue}. Ta-ra, love.`
+    : `${sayFirst} ${dish}${venue}.`);
+}
+
+function renderSpecials() {
+  const { pool, pick } = current;
+  const picked = new Set(pick ? [pick] : []);
+  const board = [];
+  for (let i = 0; i < 7 && board.length < Math.min(7, pool.length - picked.size); i++) {
+    const x = drawOne(pool, new Set([...picked, ...board]));
+    if (x) board.push(x);
+  }
+  const ol = $("specials");
+  ol.innerHTML = "";
+  $("others").hidden = !board.length;
+  for (const x of board.sort((a, b) => a.r.dist - b.r.dist)) {
+    const li = document.createElement("li");
+    const btn = document.createElement("button");
+    btn.innerHTML = `<span class="d">${esc(x.dish)} <em>@ ${esc(x.r.name)}</em></span><span class="m">${Math.round(x.r.dist)} m</span>`;
+    btn.onclick = () => choose(x);
+    li.append(btn); ol.append(li);
+  }
+}
+
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+// Pick a British voice if there is one.
+function speak(text) {
+  if (!$("speak").checked || !("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  const voices = speechSynthesis.getVoices().filter((v) => v.lang === "en-GB");
+  u.voice = voices.find((v) => /female|kate|serena|martha|stephanie|libby|sonia/i.test(v.name)) || voices[0] || null;
+  u.lang = "en-GB"; u.rate = 1.02; u.pitch = 1.15;
+  speechSynthesis.speak(u);
+}
+
+$("judgeBtn").onclick = judge;
+$("rerollBtn").onclick = reroll;
+$("changeLoc").onclick = () => { $("locForm").hidden = false; $("changeLoc").hidden = true; $("place").focus(); };
+$("locForm").onsubmit = (e) => { e.preventDefault(); geocode(); $("locForm").hidden = true; $("changeLoc").hidden = false; };
+requestLocation();
+</script>
+</body>
+</html>
